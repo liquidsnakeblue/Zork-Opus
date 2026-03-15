@@ -13,12 +13,6 @@ Your ultimate goal is to collect treasures and **deposit them in the trophy case
 
 Carrying treasures does NOT score full points - only depositing them in the trophy case does. Plan your exploration to periodically return treasures to the Living Room before venturing deeper into dangerous areas.
 
-**CRITICAL SCORING STRATEGY:**
-- **DEPOSIT IMMEDIATELY**: When you have a treasure, your #1 priority is getting it to the trophy case. Do NOT continue exploring while carrying treasures — the Thief roams the underground and WILL steal them from you.
-- **The Thief**: A dangerous NPC who appears randomly underground. He steals items from your inventory. Never carry treasures longer than necessary.
-- **The trap door**: When you go DOWN from the Living Room to the Cellar, the trap door CLOSES and LOCKS behind you. You CANNOT go back up. You must find the round trip route through the underground.
-- **Score early, score often**: Each treasure deposited is permanent points. Explore in short loops: grab treasure → return to Living Room → deposit → go back for more.
-
 ---
 
 ## PRIORITY HIERARCHY
@@ -325,7 +319,6 @@ Build on previous thinking—don't restart from scratch each turn.
 - Moving away from puzzles giving you NEW feedback each turn
 - Jumping to complex solutions without trying standard actions first
 - **OSCILLATION**: Moving back and forth between the same 2-3 rooms. If your Recent Actions show you visiting the same rooms repeatedly, STOP and pick a NEW direction you haven't tried
-- **Carrying treasures while exploring**: Deposit treasures in the trophy case BEFORE continuing exploration
 
 ---
 
