@@ -140,6 +140,16 @@ class ContextManager:
                 parts.append(f"  T{entry.turn}: {entry.action} → {resp_preview}")
             parts.append("")
 
+        # Oscillation detection — warn if agent is bouncing between same rooms
+        if len(gs.action_history) >= 6:
+            recent_locs = [e.location_name for e in gs.action_history[-6:]]
+            unique = set(recent_locs)
+            if len(unique) <= 2:
+                parts.append(f"🚨 OSCILLATION DETECTED: You have been bouncing between {' and '.join(unique)} "
+                            f"for the last {len(recent_locs)} turns. STOP and try a completely different direction "
+                            f"or approach. Check your map for unexplored exits.")
+                parts.append("")
+
         # Navigation failure message
         if gs.navigation_failure_msg:
             parts.append(f"⚠️ {gs.navigation_failure_msg}")
