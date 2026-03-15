@@ -83,7 +83,15 @@ class ObjectiveManager:
 
         # Build context for reasoner
         parts = [f"Turn: {self.gs.turn_count}", f"Score: {self.gs.previous_score}",
-                 f"Location: {self.gs.current_room_name} (L{self.gs.current_room_id})"]
+                 f"Location: {self.gs.current_room_name} (L{self.gs.current_room_id})",
+                 f"Inventory: {', '.join(self.gs.current_inventory) if self.gs.current_inventory else 'empty'}"]
+
+        # Score stagnation awareness
+        turns_since_score = self.gs.turn_count - self.gs.last_scoring_turn
+        if turns_since_score > 15:
+            parts.append(f"\n⚠️ SCORE STAGNATION: No score increase in {turns_since_score} turns. "
+                        f"Current strategy is not working. Prioritize EXPLORATION objectives "
+                        f"to discover new areas and items.")
 
         # Current objectives
         active = self.gs.active_objectives

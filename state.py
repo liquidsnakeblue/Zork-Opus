@@ -68,6 +68,7 @@ class GameState:
     last_score_delta: int = 0
     last_items_gained: List[str] = field(default_factory=list)
     last_items_lost: List[str] = field(default_factory=list)
+    last_scoring_turn: int = 0  # Turn when score last increased
 
     # Action tracking
     action_counts: Counter = field(default_factory=Counter)
@@ -136,6 +137,7 @@ class GameState:
         self.last_score_delta = 0
         self.last_items_gained.clear()
         self.last_items_lost.clear()
+        self.last_scoring_turn = 0
         self.action_counts.clear()
         self.action_history.clear()
         self.reasoning_history.clear()
