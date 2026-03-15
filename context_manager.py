@@ -159,6 +159,26 @@ class ContextManager:
                             f"or approach. Check your map for unexplored exits.")
                 parts.append("")
 
+        # Maze/similar-room wandering detection
+        # Detect when agent is stuck in rooms with similar base names (e.g., "Maze", "Maze 1", "Maze 2")
+        if len(gs.action_history) >= 10:
+            recent_locs_10 = [e.location_name for e in gs.action_history[-10:]]
+            # Normalize: strip trailing numbers/spaces to find base name
+            import re as _re
+            base_names = [_re.sub(r'\s*\d+\s*$', '', loc).strip() for loc in recent_locs_10]
+            from collections import Counter as _Counter
+            base_counts = _Counter(base_names)
+            dominant_base, dominant_count = base_counts.most_common(1)[0]
+            if dominant_count >= 7:  # 7+ of last 10 turns in same-named area
+                parts.append(
+                    f"🚨 MAZE WANDERING DETECTED: You have spent {dominant_count} of the last 10 turns "
+                    f"in '{dominant_base}' rooms. You are LOST. Random directions will not help. "
+                    f"STRATEGY: Drop a recognizable item to mark your path. Try mapping systematically "
+                    f"(always go one direction until blocked, then try next). Or use Pathfinder to "
+                    f"navigate to a known room outside the maze. Consider selecting a different "
+                    f"objective with `Objective: <id>` to leave this area entirely.")
+                parts.append("")
+
         # Navigation failure message
         if gs.navigation_failure_msg:
             parts.append(f"⚠️ {gs.navigation_failure_msg}")
