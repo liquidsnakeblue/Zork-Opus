@@ -464,7 +464,7 @@ class Orchestrator:
         # ── Reasoner update (periodic + ensure objectives exist) ──
         if self.objectives.should_run_reasoner():
             self.objectives.run_reasoner(response)
-        elif not self.gs.active_objectives:
+        elif not self.gs.active_objectives and self.objectives.should_run_reasoner():
             # All objectives completed/abandoned — trigger reasoner for new ones
             self.objectives.run_reasoner(response)
 

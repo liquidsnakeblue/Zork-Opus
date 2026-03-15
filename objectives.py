@@ -68,11 +68,15 @@ class ObjectiveManager:
             api_key=config.api_key_for("reasoner"),
         )
         self.review_client = review_client or self.reasoner_client
+        self._reasoner_fail_turn = -999  # Cooldown after failures
 
     def should_run_reasoner(self) -> bool:
         """Check if it's time for the reasoner to update objectives."""
         turn = self.gs.turn_count
         if turn == 0: return False
+        # Cooldown after failure: wait at least 5 turns before retrying
+        if (turn - self._reasoner_fail_turn) < 5:
+            return False
         interval = self.config.objective_update_interval
         return (turn - self.gs.objective_update_turn) >= interval
 
@@ -239,6 +243,7 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
 
         except Exception as e:
             if self.logger: self.logger.error(f"Reasoner failed: {e}")
+            self._reasoner_fail_turn = self.gs.turn_count
             return None
 
     def _apply_reasoner_result(self, result: ReasonerResponse):
