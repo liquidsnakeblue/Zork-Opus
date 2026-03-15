@@ -54,6 +54,7 @@ class ContextManager:
 
     def format_prompt(self, ctx: Dict[str, Any], game_text: str = "") -> str:
         """Format context dict into the text prompt sent to agent."""
+        gs = self.game_state
         parts = []
 
         # Game state header
@@ -92,7 +93,6 @@ class ContextManager:
         parts.append("")
 
         # Room description (if recent enough)
-        gs = self.game_state
         desc_age = gs.turn_count - gs.last_room_description_turn
         if (gs.last_room_description
             and desc_age <= self.config.room_description_age_window
