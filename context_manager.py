@@ -140,13 +140,20 @@ class ContextManager:
                 parts.append(f"  ✓ {c.get('objective', '?')} (turn {c.get('completed_turn', '?')})")
             parts.append("")
 
-        # Recent action history (last 5)
+        # Recent action history (last 5) with failed-action annotations
         recent = gs.action_history[-5:]
         if recent:
             parts.append("=== RECENT ACTIONS ===")
-            for entry in recent:
+            for i, entry in enumerate(recent):
                 resp_preview = entry.response[:100] + "..." if len(entry.response) > 100 else entry.response
-                parts.append(f"  T{entry.turn}: {entry.action} → {resp_preview}")
+                # Annotate if action didn't change location (potential wasted turn)
+                wasted = ""
+                if i > 0 and entry.location_name == recent[i-1].location_name:
+                    action_lower = entry.action.lower().strip()
+                    from map_graph import DIRECTION_MAP
+                    if action_lower in DIRECTION_MAP:
+                        wasted = " ⛔ FAILED MOVEMENT"
+                parts.append(f"  T{entry.turn}: {entry.action} → {resp_preview}{wasted}")
             parts.append("")
 
         # Oscillation detection — warn if agent is bouncing between same rooms
