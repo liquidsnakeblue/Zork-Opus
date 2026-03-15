@@ -64,6 +64,11 @@ class GameState:
     navigation_failure_msg: Optional[str] = None
     last_action_moved: bool = False
 
+    # Last turn deltas (for context display)
+    last_score_delta: int = 0
+    last_items_gained: List[str] = field(default_factory=list)
+    last_items_lost: List[str] = field(default_factory=list)
+
     # Action tracking
     action_counts: Counter = field(default_factory=Counter)
     action_history: List[ActionEntry] = field(default_factory=list)
@@ -128,6 +133,9 @@ class GameState:
         self.visited_locations.clear()
         self.navigation_failure_msg = None
         self.last_action_moved = False
+        self.last_score_delta = 0
+        self.last_items_gained.clear()
+        self.last_items_lost.clear()
         self.action_counts.clear()
         self.action_history.clear()
         self.reasoning_history.clear()

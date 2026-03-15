@@ -57,15 +57,24 @@ class ContextManager:
         parts = []
 
         # Game state header
-        parts.append(f"=== TURN {ctx.get('turn', 0)} | Score: {ctx.get('score', 0)} ===")
+        score = ctx.get('score', 0)
+        score_line = f"=== TURN {ctx.get('turn', 0)} | Score: {score}"
+        if gs.last_score_delta > 0:
+            score_line += f" (+{gs.last_score_delta} this turn!)"
+        score_line += " ==="
+        parts.append(score_line)
         parts.append(f"Location: {ctx.get('location', '?')} (L{ctx.get('location_id', '?')})")
 
         if ctx.get('prev_room'):
             parts.append(f"Previous: {ctx['prev_room']} → {ctx.get('action_to_current', '?')}")
 
-        # Inventory
+        # Inventory (with change notifications)
         inv = ctx.get('inventory', [])
         parts.append(f"Inventory: {', '.join(inv) if inv else 'empty'}")
+        if gs.last_items_gained:
+            parts.append(f"  📦 Acquired: {', '.join(gs.last_items_gained)}")
+        if gs.last_items_lost:
+            parts.append(f"  ⚠️ Lost: {', '.join(gs.last_items_lost)}")
 
         # Exits
         exits = ctx.get('exits', [])
