@@ -549,7 +549,11 @@ class Orchestrator:
             self.pathfinder.start_navigation(target_id, room_name)
         else:
             reason = result["reason"] if result else "Pathfinder error"
-            pf_ctx = f"\n=== PATHFINDER RESULT ===\nTarget: {room_name}\nNO PATH: {reason}\n"
+            pf_ctx = (f"\n=== PATHFINDER RESULT ===\nTarget: {room_name}\n"
+                     f"NO PATH: {reason}\n"
+                     f"ACTION REQUIRED: Explore NEW unexplored exits to discover connections "
+                     f"toward your target. Do NOT retry the same route. Pick a direction you "
+                     f"haven't tried from your current location.\n")
 
         self.gs.tool_history.append({"tool": "pathfinder", "target": room_name, "success": bool(result and result["found"])})
         self.gs.active_tool = None
