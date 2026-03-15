@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+*.egg
+dist/
+build/
+
+# Environment
+.env
+
+# Game runtime files (regenerated each run)
+game_files/episodes/
+game_files/prompt_logs/
+game_files/session_stats.json
+game_files/map_state.json
+game_files/knowledgebase.md
+game_files/Memories.md
+game_files/Memories.md.backup
+current_state.json
+Zork Walkthrough*.md
+backups/
+
+# Logs
+*.log
+zork_episode_log.txt
+zork_episode_log.jsonl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

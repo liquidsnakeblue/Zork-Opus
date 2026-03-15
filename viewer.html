@@ -1,0 +1,3925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZorkGPT Viewer 4</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ================================================================
+           Section 1: Design Tokens
+           ================================================================ */
+        :root {
+            /* Backgrounds */
+            --bg-primary: #1a1612;
+            --bg-secondary: #241f1a;
+            --bg-tertiary: #2e2822;
+            --bg-card: #352e27;
+            --bg-card-hover: #3d352d;
+
+            /* Accent Colors */
+            --accent-gold: #d4a84b;
+            --accent-gold-dim: #b8923f;
+            --accent-copper: #c97b4b;
+            --accent-green: #7cb87c;
+            --accent-blue: #6b9fc4;
+            --accent-red: #c97b6b;
+            --accent-purple: #a87bdb;
+            --accent-purple-dim: #8b65b8;
+            --accent-purple-dark: #4a3366;
+            --accent-teal: #5bb8a8;
+            --accent-nav-blue: #64c8ff;
+            --accent-nav-green: #64ff96;
+
+            /* Text */
+            --text-primary: #e8e0d5;
+            --text-secondary: #b5a99a;
+            --text-muted: #8a7e70;
+            --text-dim: #5a5047;
+
+            /* Borders */
+            --border-color: #4a423a;
+            --border-subtle: #3a342e;
+
+            /* Shadows */
+            --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.3);
+            --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.2);
+
+            /* Radii */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+
+            /* Typography Scale */
+            --text-xs: 9px;
+            --text-sm: 11px;
+            --text-base: 13px;
+            --text-md: 14px;
+            --text-lg: 16px;
+            --text-xl: 18px;
+            --text-2xl: 22px;
+
+            /* Transitions */
+            --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --duration-fast: 0.15s;
+            --duration-normal: 0.3s;
+            --duration-slow: 0.5s;
+
+            /* Card Image Sizes */
+            --card-image-size: 384px;
+            --card-image-tablet: 211px;
+            --card-image-phone: 135px;
+
+            /* Streaming Theme Text Colors */
+            --theme-gold-text: #e0c896;
+            --theme-purple-text: #d4b8f0;
+            --theme-copper-text: #f0c896;
+            --theme-teal-text: #a8e0d8;
+            --theme-green-text: #a8f0c0;
+            --theme-blue-text: #a8d0f0;
+        }
+
+        /* ================================================================
+           Section 2: Reset & Base
+           ================================================================ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* ================================================================
+           Section 3: Layout Structure
+           ================================================================ */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-panel {
+            width: 55%;
+            min-width: 400px;
+            max-width: 80%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .map-panel {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+
+        /* ================================================================
+           Section 4: Header Component
+           ================================================================ */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            object-fit: cover;
+        }
+
+        .logo h1 {
+            font-family: 'Crimson Pro', Georgia, serif;
+            font-size: var(--text-2xl);
+            font-weight: 600;
+            color: var(--accent-gold);
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--text-xl);
+            font-weight: 600;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-value.gold { color: var(--accent-gold); }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            animation: breathe 3s ease-in-out infinite;
+        }
+
+        .connection-dot.connected {
+            background: var(--accent-green);
+        }
+
+        .connection-text {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        #high-score.new-record {
+            animation: glowGold 1s ease-in-out 3;
+        }
+
+        /* Fullscreen Button */
+        .fullscreen-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--duration-fast) ease;
+        }
+
+        .fullscreen-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent-gold);
+        }
+
+        .fullscreen-btn svg {
+            width: 18px;
+            height: 18px;
+            color: var(--text-secondary);
+            transition: color var(--duration-fast) ease;
+        }
+
+        .fullscreen-btn:hover svg { color: var(--accent-gold); }
+        .fullscreen-btn .fullscreen-exit { display: none; }
+        :fullscreen .fullscreen-btn .fullscreen-enter { display: none; }
+        :fullscreen .fullscreen-btn .fullscreen-exit { display: block; }
+
+        /* Streaming status indicator */
+        #streaming-indicator {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--accent-green);
+        }
+
+        #streaming-indicator .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: streamingPulse 1s ease-in-out infinite;
+        }
+
+        /* ================================================================
+           Section 5: Inventory & Objectives Bar
+           ================================================================ */
+        .inventory-bar {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px 12px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .inventory-label,
+        .objectives-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .objectives-label {
+            margin-left: 16px;
+            padding-left: 16px;
+            border-left: 1px solid var(--border-subtle);
+        }
+
+        .inventory-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .inv-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            font-size: 12px;
+            color: var(--text-primary);
+            animation: chipEnter 0.3s var(--ease-out-back) forwards;
+        }
+
+        .inv-chip-icon { font-size: 12px; }
+
+        .inventory-empty {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Objectives Chips */
+        .objectives-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .objectives-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .obj-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+            transition: all 0.4s ease;
+            white-space: nowrap;
+        }
+
+        .obj-chip-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--text-dim);
+            transition: all var(--duration-normal) ease;
+        }
+
+        .obj-chip.pending {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            background: rgba(107, 159, 196, 0.1);
+        }
+        .obj-chip.pending .obj-chip-dot { background: var(--accent-blue); }
+
+        .obj-chip.in_progress {
+            border-color: var(--accent-gold);
+            color: var(--text-primary);
+            background: rgba(212, 168, 75, 0.1);
+        }
+        .obj-chip.in_progress .obj-chip-dot {
+            background: var(--accent-gold);
+            box-shadow: 0 0 6px 2px rgba(212, 168, 75, 0.6);
+            animation: dotGlow 1.5s ease-in-out infinite;
+        }
+
+        .obj-chip.completed {
+            opacity: 0.6;
+            border-color: var(--accent-green);
+            color: var(--text-muted);
+        }
+        .obj-chip.completed .obj-chip-dot {
+            background: transparent;
+            width: auto;
+            height: auto;
+            font-size: 10px;
+            color: var(--accent-green);
+        }
+        .obj-chip.completed .obj-chip-dot::before { content: '✓'; }
+
+        .obj-chip.completed.fading-1 { opacity: 0.35; transition: opacity var(--duration-slow) ease; }
+        .obj-chip.completed.fading-2 { opacity: 0.15; transition: opacity var(--duration-slow) ease; }
+
+        .objectives-empty-chip {
+            font-size: var(--text-sm);
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        /* ================================================================
+           Section 6: Timeline & Cards
+           ================================================================ */
+        .chat-header {
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .chat-header-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chat-header svg {
+            width: 16px;
+            height: 16px;
+            color: var(--accent-gold);
+        }
+
+        .timeline {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+
+        /* Card — NO !important, no height constraints */
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+            overflow: visible;
+            box-shadow: var(--shadow-card);
+            transition: border-color var(--duration-fast) ease;
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            position: relative;
+        }
+
+        .card:hover { border-color: var(--border-color); }
+
+        .card .card-image {
+            width: var(--card-image-size);
+            min-width: var(--card-image-size);
+            min-height: var(--card-image-size);
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+
+        .card-image {
+            width: var(--card-image-size);
+            min-width: var(--card-image-size);
+            height: var(--card-image-size);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            border-right: 1px solid var(--border-subtle);
+        }
+
+        .card-image img {
+            width: var(--card-image-size);
+            height: var(--card-image-size);
+            object-fit: cover;
+        }
+
+        .card-image.no-image {
+            width: var(--card-image-size);
+            min-width: var(--card-image-size);
+            height: var(--card-image-size);
+            color: var(--text-dim);
+            font-size: var(--text-md);
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .card-image.no-image svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.3;
+        }
+
+        /* Card Content — NO scrolling, content pushes card height */
+        .card-content {
+            flex: 1;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 0;
+            overflow: visible;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .turn-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--text-sm);
+            font-weight: 600;
+            color: var(--accent-gold);
+            background: rgba(212, 168, 75, 0.15);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            margin-left: auto;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .action-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--text-base);
+            font-weight: 500;
+            color: var(--accent-blue);
+            background: rgba(107, 159, 196, 0.12);
+            padding: 5px 12px;
+            border-radius: var(--radius-sm);
+        }
+
+        .room-change {
+            font-size: var(--text-md);
+            font-weight: 600;
+            color: var(--accent-copper);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 8px;
+        }
+
+        .room-change svg {
+            width: 14px;
+            height: 14px;
+            transform: scaleX(-1);
+        }
+
+        /* Card with Room Change */
+        .card.room-change-card { border-color: var(--accent-gold-dim); }
+
+        /* Card entry animation */
+        .card.entering {
+            animation: cardEnter 0.6s var(--ease-out) forwards;
+        }
+
+        .card.entering::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: var(--radius-md);
+            background: transparent;
+            box-shadow: 0 0 30px 8px rgba(212, 168, 75, 0.4);
+            animation: glowFade 2s ease-out forwards;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Pending AI card */
+        .card.pending-ai {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 20px 2px rgba(212, 168, 75, 0.2);
+        }
+
+        .card.pending-ai .thinking-placeholder {
+            animation: pendingGlow 2s ease-in-out infinite;
+        }
+
+        /* ================================================================
+           Section 7: Streaming Sections (unified themes)
+           ================================================================ */
+        .thinking {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 0;
+            border-left: 3px solid var(--accent-gold-dim);
+            overflow: hidden;
+        }
+
+        .thinking-header {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-gold-dim);
+            padding: 10px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background var(--duration-fast) ease;
+            user-select: none;
+        }
+
+        .thinking-header:hover { background: rgba(212, 168, 75, 0.1); }
+
+        .thinking-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .thinking-toggle {
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .thinking.collapsed .thinking-toggle { transform: rotate(-90deg); }
+
+        .thinking-content {
+            max-height: 50000px;
+            overflow: visible;
+            transition: max-height var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.4s ease,
+                        opacity 0.4s ease;
+            padding: 0 16px 12px 16px;
+            opacity: 1;
+        }
+
+        /* Streaming state: fixed height with auto-scroll and top fade */
+        .thinking.streaming .thinking-content {
+            max-height: 12em;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+            position: relative;
+        }
+
+        .thinking.streaming .thinking-content::before {
+            content: '';
+            position: sticky;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2em;
+            background: linear-gradient(var(--bg-tertiary), transparent);
+            pointer-events: none;
+            display: block;
+            margin-bottom: -2em;
+            z-index: 1;
+        }
+
+        /* Streaming cursor */
+        .thinking.streaming .thinking-text::after {
+            content: '▌';
+            animation: cursorBlink 0.8s step-end infinite;
+            color: inherit;
+            opacity: 0.7;
+        }
+
+        .thinking.collapsed .thinking-content {
+            max-height: 4.8em;
+            padding: 8px 16px;
+            opacity: 0.7;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .thinking.collapsing .thinking-content { opacity: 0.5; }
+
+        .thinking.collapsed .thinking-content::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2em;
+            background: linear-gradient(transparent, var(--bg-tertiary));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity var(--duration-normal) ease 0.2s;
+        }
+
+        .thinking.collapsed:not(.collapsing) .thinking-content::after { opacity: 1; }
+
+        .thinking-text {
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
+            font-size: var(--text-base);
+            font-weight: 400;
+            line-height: 1.7;
+            color: var(--theme-gold-text);
+            white-space: pre-wrap;
+            margin: 0;
+        }
+
+        .thinking-word-count {
+            font-size: 10px;
+            color: var(--text-dim);
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .reasoning-section { margin-bottom: 12px; }
+        .reasoning-section:last-child { margin-bottom: 0; }
+
+        .reasoning-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .thinking-content .tool-annotation { margin: 12px 0; }
+
+        /* Theme: Gold (Agent Reasoning) — default */
+        .thinking.theme-gold { border-left-color: var(--accent-gold-dim); }
+        .thinking.theme-gold .thinking-header { color: var(--accent-gold-dim); }
+        .thinking.theme-gold .thinking-header:hover { background: rgba(212, 168, 75, 0.1); }
+        .thinking.theme-gold .thinking-text { color: var(--theme-gold-text); }
+        .thinking.theme-gold .streaming-dots span { background: var(--accent-gold-dim); }
+
+        /* Theme: Purple (Deep Reasoner) */
+        .thinking.theme-purple { border-left-color: var(--accent-purple-dim); }
+        .thinking.theme-purple .thinking-header { color: var(--accent-purple); }
+        .thinking.theme-purple .thinking-header:hover { background: rgba(168, 123, 219, 0.1); }
+        .thinking.theme-purple .thinking-text { color: var(--theme-purple-text); }
+        .thinking.theme-purple .streaming-dots span { background: var(--accent-purple); }
+
+        /* Theme: Copper (Memory Synthesis) */
+        .thinking.theme-copper { border-left-color: var(--accent-copper); }
+        .thinking.theme-copper .thinking-header { color: var(--accent-copper); }
+        .thinking.theme-copper .thinking-header:hover { background: rgba(201, 123, 75, 0.1); }
+        .thinking.theme-copper .thinking-text { color: var(--theme-copper-text); }
+        .thinking.theme-copper .streaming-dots span { background: var(--accent-copper); }
+
+        /* Theme: Teal (Objective Review) */
+        .thinking.theme-teal { border-left-color: var(--accent-teal); }
+        .thinking.theme-teal .thinking-header { color: var(--accent-teal); }
+        .thinking.theme-teal .thinking-header:hover { background: rgba(91, 184, 168, 0.1); }
+        .thinking.theme-teal .thinking-text { color: var(--theme-teal-text); }
+        .thinking.theme-teal .streaming-dots span { background: var(--accent-teal); }
+
+        /* Theme: Green (Follow-up Reasoning) */
+        .thinking.theme-green { border-left-color: var(--accent-nav-green); }
+        .thinking.theme-green .thinking-header { color: var(--accent-nav-green); }
+        .thinking.theme-green .thinking-header:hover { background: rgba(100, 255, 150, 0.1); }
+        .thinking.theme-green .thinking-text { color: var(--theme-green-text); }
+        .thinking.theme-green .streaming-dots span { background: var(--accent-nav-green); }
+
+        /* Theme: Blue (Web Search) */
+        .thinking.theme-blue { border-left-color: #5b9bd5; }
+        .thinking.theme-blue .thinking-header { color: #5b9bd5; }
+        .thinking.theme-blue .thinking-header:hover { background: rgba(91, 155, 213, 0.1); }
+        .thinking.theme-blue .thinking-text { color: var(--theme-blue-text); }
+        .thinking.theme-blue .streaming-dots span { background: #5b9bd5; }
+
+        /* ================================================================
+           Section 8: Reasoner Cards
+           ================================================================ */
+        .reasoner-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            border-left: 4px solid var(--accent-purple);
+            box-shadow: var(--shadow-card);
+            animation: slideIn var(--duration-normal) ease-out;
+            flex-direction: column;
+        }
+
+        .reasoner-card .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .reasoner-card .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .reasoner-card .card-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-dim));
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--text-lg);
+        }
+
+        .reasoner-card .card-label {
+            font-size: var(--text-sm);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-purple);
+        }
+
+        .reasoner-card .trigger-reason {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .reasoner-card .card-turn {
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .reasoner-phase {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: var(--text-sm);
+            font-weight: 500;
+            color: var(--accent-purple);
+            background: var(--accent-purple-dark);
+            padding: 4px 10px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .reasoner-phase .phase-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-purple);
+            border-radius: 50%;
+            animation: pulseDot 1.5s ease-in-out infinite;
+        }
+
+        .reasoner-objectives {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .reasoner-objectives-header {
+            font-size: var(--text-sm);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-purple);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .reasoner-objective-item {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--accent-purple-dim);
+        }
+        .reasoner-objective-item:last-child { margin-bottom: 0; }
+
+        .reasoner-objective-id {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent-purple);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .reasoner-objective-name {
+            font-size: var(--text-base);
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-top: 2px;
+        }
+
+        .reasoner-objective-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .reasoner-objective-category {
+            display: inline-block;
+            font-size: var(--text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 6px;
+        }
+
+        .reasoner-objective-category.action {
+            background: rgba(108, 159, 196, 0.2);
+            color: var(--accent-blue);
+        }
+
+        .reasoner-objective-category.exploration {
+            background: rgba(124, 184, 124, 0.2);
+            color: var(--accent-green);
+        }
+
+        /* ================================================================
+           Section 9: Post-Action Sections
+           ================================================================ */
+        .memory-synthesis-section,
+        .objective-review-section,
+        .web-search-section {
+            margin-top: 8px;
+        }
+
+        .memory-synthesis-header,
+        .objective-review-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: var(--text-sm);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .memory-synthesis-header { color: var(--accent-copper); }
+        .objective-review-header { color: var(--accent-teal); }
+
+        .memory-synthesis-header .phase-dot,
+        .objective-review-header .phase-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: pulseDot 1.5s ease-in-out infinite;
+        }
+        .memory-synthesis-header .phase-dot { background: var(--accent-copper); }
+        .objective-review-header .phase-dot { background: var(--accent-teal); }
+
+        .memory-result-category {
+            display: inline-block;
+            font-size: var(--text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(201, 123, 75, 0.2);
+            color: var(--accent-copper);
+            margin-left: 8px;
+        }
+
+        .objective-completed-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: rgba(91, 184, 168, 0.15);
+            border-radius: var(--radius-sm);
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: var(--accent-teal);
+        }
+        .objective-completed-item .checkmark { font-size: var(--text-md); }
+
+        .objective-progress-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .objective-progress-item .progress-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            background: rgba(91, 184, 168, 0.2);
+            border-radius: 4px;
+            color: var(--accent-teal);
+        }
+
+        /* Memory Result Indicators */
+        .memory-result {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-top: 10px;
+            font-size: var(--text-base);
+        }
+
+        .memory-result.memory-created {
+            background: rgba(205, 133, 63, 0.15);
+            border-left: 3px solid var(--accent-copper);
+            color: #e8b97a;
+        }
+
+        .memory-result.memory-skipped {
+            background: var(--bg-tertiary);
+            border-left: 3px solid #6b6357;
+            color: var(--text-secondary);
+        }
+
+        .memory-result-icon { font-size: var(--text-lg); }
+        .memory-result-text strong { color: var(--accent-copper); }
+
+        .memory-category-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            background: rgba(205, 133, 63, 0.25);
+            border-radius: 4px;
+            color: var(--accent-copper);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Objective Result Indicators */
+        .objective-result {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-top: 10px;
+            font-size: var(--text-base);
+        }
+
+        .objective-result.objectives-completed {
+            background: rgba(91, 184, 168, 0.15);
+            border-left: 3px solid var(--accent-teal);
+            color: var(--theme-teal-text);
+        }
+
+        .objective-result.objectives-updated {
+            background: rgba(91, 184, 168, 0.1);
+            border-left: 3px solid #4a9a8a;
+            color: #8cc8bc;
+        }
+
+        .objective-result.objectives-unchanged {
+            background: var(--bg-tertiary);
+            border-left: 3px solid #6b6357;
+            color: var(--text-secondary);
+        }
+
+        .objective-result-icon { font-size: var(--text-lg); }
+        .objective-result-text strong { color: var(--accent-teal); }
+
+        /* AI Action Section */
+        .ai-action {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .ai-action-header {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-blue);
+            margin-bottom: 6px;
+        }
+
+        .ai-action-text {
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
+            font-size: var(--text-base);
+            font-weight: 400;
+            line-height: 1.7;
+            color: #96c8e0;
+            margin: 0;
+        }
+
+        /* Outcome Section */
+        .outcome {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .outcome-header {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-green);
+            margin-bottom: 6px;
+        }
+
+        .outcome-text {
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.8;
+            color: #96e0a8;
+        }
+
+        .outcome.suggested-approach {
+            border-left-color: var(--accent-teal);
+            background: rgba(102, 187, 204, 0.05);
+        }
+        .outcome.suggested-approach .outcome-header { color: var(--accent-teal); }
+        .outcome.suggested-approach .outcome-text { color: #a8d8e6; }
+
+        /* Objectives List within Outcome */
+        .objectives-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .objective-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            border-left: 3px solid var(--accent-teal);
+        }
+
+        .objective-item .objective-id {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent-teal);
+            background: rgba(102, 187, 204, 0.15);
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+
+        .objective-item .objective-name {
+            font-size: var(--text-base);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .objective-item .objective-category {
+            font-size: var(--text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .objective-item .objective-category.exploration {
+            background: rgba(102, 187, 204, 0.2);
+            color: var(--accent-teal);
+        }
+
+        .objective-item .objective-category.action {
+            background: rgba(108, 159, 196, 0.2);
+            color: var(--accent-blue);
+        }
+
+        .objective-item .objective-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin: 6px 0 0 0;
+            line-height: 1.5;
+        }
+
+        .objective-item .objective-completion {
+            font-size: var(--text-sm);
+            color: var(--accent-green);
+            margin: 4px 0 0 0;
+            padding-left: 8px;
+            border-left: 2px solid var(--accent-green);
+            font-style: italic;
+        }
+
+        /* ================================================================
+           Section 10: Tool Overlays & Annotations
+           ================================================================ */
+        .tool-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            background: rgba(212, 168, 75, 0.15);
+            border: 1px solid rgba(212, 168, 75, 0.4);
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--accent-gold);
+            transition: opacity var(--duration-normal) ease, transform var(--duration-normal) ease;
+            margin-left: auto;
+        }
+
+        .tool-status-bar.hidden {
+            opacity: 0;
+            transform: scale(0.9);
+            pointer-events: none;
+        }
+
+        .tool-status-bar .status-icon { font-size: var(--text-md); }
+        .tool-status-bar.processing .status-icon { animation: statusPulse 1s ease-in-out infinite; }
+
+        .tool-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-lg);
+            z-index: 10;
+            animation: overlayFadeIn 0.6s ease;
+        }
+
+        .tool-overlay .tool-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            animation: toolBounce 1s ease-in-out infinite;
+        }
+
+        .tool-overlay .tool-label {
+            font-size: var(--text-lg);
+            font-weight: bold;
+            color: var(--accent-gold);
+            margin-bottom: 8px;
+        }
+
+        .tool-overlay .tool-detail {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+            max-width: 80%;
+            text-align: center;
+        }
+
+        .tool-overlay.pathfinder {
+            border: 2px solid rgba(100, 200, 255, 0.6);
+        }
+        .tool-overlay.pathfinder .tool-label { color: var(--accent-nav-blue); }
+
+        .tool-overlay.objective {
+            border: 2px solid rgba(100, 255, 150, 0.6);
+        }
+        .tool-overlay.objective .tool-label { color: var(--accent-nav-green); }
+
+        .tool-overlay.objective_followup {
+            border: 2px solid rgba(100, 255, 150, 0.6);
+            background: rgba(0, 0, 0, 0.75);
+        }
+        .tool-overlay.objective_followup .tool-label { color: var(--accent-nav-green); }
+        .tool-overlay.objective_followup .tool-icon { animation: toolPulse 1.5s ease-in-out infinite; }
+
+        /* Tool Annotations */
+        .tool-annotation {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
+            animation: annotationSlideIn 0.4s ease;
+        }
+
+        .tool-annotation.pathfinder {
+            background: rgba(100, 200, 255, 0.15);
+            border-left: 3px solid var(--accent-nav-blue);
+            color: var(--accent-nav-blue);
+        }
+
+        .tool-annotation.objective {
+            background: rgba(100, 255, 150, 0.15);
+            border-left: 3px solid var(--accent-nav-green);
+            color: var(--accent-nav-green);
+        }
+
+        .tool-annotation .annotation-icon { font-size: 12px; }
+        .tool-annotation .annotation-text { color: var(--text-secondary); }
+
+        .tool-annotation.followup-annotation {
+            margin: 12px 0;
+            padding: 8px 12px;
+        }
+
+        /* ================================================================
+           Section 11: Map Panel
+           ================================================================ */
+        .map-header {
+            padding: 12px 20px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .map-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .map-header-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .map-header svg {
+            width: 16px;
+            height: 16px;
+            color: var(--accent-copper);
+        }
+
+        .map-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .map-stats span {
+            color: var(--accent-gold);
+            font-weight: 600;
+        }
+
+        .map-container {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            display: flex;
+        }
+
+        .map-diagram {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+
+        #cytoscape-map {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+        }
+
+        .map-controls {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .map-control-btn {
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--text-xl);
+            font-weight: 600;
+            transition: all var(--duration-fast) ease;
+        }
+
+        .map-control-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+        }
+
+        .map-control-btn:active { transform: scale(0.95); }
+        .map-control-btn.fit-btn { font-size: 12px; }
+
+        /* ================================================================
+           Section 12: Navigation Bar
+           ================================================================ */
+        .navigation-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.15), rgba(100, 200, 255, 0.05));
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            border-radius: 8px;
+            margin: 8px 12px;
+            transition: opacity var(--duration-normal) ease, max-height var(--duration-normal) ease;
+            overflow: hidden;
+        }
+
+        .navigation-bar.hidden {
+            opacity: 0;
+            max-height: 0;
+            padding: 0 16px;
+            margin: 0 12px;
+            border: none;
+        }
+
+        .nav-destination {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
+        }
+
+        .nav-thumbnail {
+            width: 48px;
+            height: 48px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 2px solid rgba(100, 200, 255, 0.5);
+            background: var(--bg-tertiary);
+        }
+
+        .nav-thumbnail[src=""],
+        .nav-thumbnail:not([src]) { display: none; }
+
+        .nav-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-room-name {
+            font-size: var(--text-md);
+            font-weight: 600;
+            color: var(--accent-nav-blue);
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .nav-progress {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 100px;
+        }
+
+        .nav-progress-bar {
+            height: 6px;
+            background: rgba(100, 200, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .nav-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-nav-blue), #4da8df);
+            border-radius: 3px;
+            transition: width var(--duration-normal) ease;
+            width: 0%;
+        }
+
+        .nav-progress-text {
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .nav-direction {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 12px;
+            background: rgba(100, 200, 255, 0.1);
+            border-radius: 6px;
+            border: 1px solid rgba(100, 200, 255, 0.2);
+        }
+
+        .nav-direction-label {
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-direction-value {
+            font-size: var(--text-md);
+            font-weight: 700;
+            color: var(--accent-nav-blue);
+            text-transform: uppercase;
+        }
+
+        /* ================================================================
+           Section 13: Utility & State Classes
+           ================================================================ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-muted);
+        }
+
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Thinking placeholder */
+        .thinking-placeholder {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--accent-gold);
+        }
+
+        .thinking-placeholder:has(.thinking) {
+            display: block;
+            padding: 0;
+            background: transparent;
+            border-left: none;
+        }
+
+        .thinking-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .thinking-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            animation: thinkingPulse 1.4s ease-in-out infinite;
+        }
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        .thinking-placeholder > .thinking-text {
+            font-size: var(--text-base);
+            font-style: italic;
+            color: var(--text-secondary);
+            white-space: normal;
+        }
+
+        /* AI data reveal animation */
+        .card .ai-section.revealing {
+            animation: aiReveal 0.6s ease-out forwards;
+        }
+
+        /* Streaming dots */
+        .streaming-dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .streaming-dots span {
+            width: 5px;
+            height: 5px;
+            background: var(--accent-gold-dim);
+            border-radius: 50%;
+            animation: streamingPulse 1s ease-in-out infinite;
+        }
+        .streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+        /* Panel Divider */
+        .panel-divider {
+            width: 6px;
+            background: var(--border-subtle);
+            cursor: col-resize;
+            transition: background var(--duration-fast) ease;
+            flex-shrink: 0;
+        }
+
+        .panel-divider:hover,
+        .panel-divider.dragging { background: var(--accent-gold); }
+
+        /* Mobile Tab Switcher */
+        .mobile-tabs {
+            display: none;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        .mobile-tab {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: var(--text-base);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--duration-fast) ease;
+            text-align: center;
+        }
+
+        .mobile-tab.active {
+            background: var(--accent-gold);
+            color: var(--bg-primary);
+            border-color: var(--accent-gold);
+        }
+
+        /* ================================================================
+           Section 14: All @keyframes
+           ================================================================ */
+        @keyframes breathe {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+        }
+
+        @keyframes glowGold {
+            0%, 100% { color: var(--accent-gold); text-shadow: none; }
+            50% { color: #ffd700; text-shadow: 0 0 10px var(--accent-gold); }
+        }
+
+        @keyframes cardEnter {
+            0% { opacity: 0; transform: translateY(-30px) scale(0.97); }
+            70% { transform: translateY(4px) scale(1); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes glowFade {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        @keyframes dotGlow {
+            0%, 100% { box-shadow: 0 0 4px 1px rgba(212, 168, 75, 0.4); }
+            50% { box-shadow: 0 0 8px 3px rgba(212, 168, 75, 0.8); }
+        }
+
+        @keyframes thinkingPulse {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes streamingPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes pendingGlow {
+            0%, 100% { background: rgba(212, 168, 75, 0.08); }
+            50% { background: rgba(212, 168, 75, 0.15); }
+        }
+
+        @keyframes aiReveal {
+            0% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes overlayFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes overlayFadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+
+        @keyframes toolBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes toolPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        @keyframes annotationSlideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes chipEnter {
+            0% { opacity: 0; transform: scale(0.8); }
+            60% { transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes cursorBlink {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0; }
+        }
+
+        /* ================================================================
+           Section 15: Consolidated Media Queries (1200 → 768 → 600 → 480)
+           ================================================================ */
+        @media (max-width: 1200px) {
+            .mobile-tabs { display: flex; }
+
+            .main-content {
+                display: block;
+                height: auto;
+                flex: 1;
+                overflow: hidden;
+            }
+
+            .chat-panel[data-mobile-visible="true"] {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                height: 100%;
+                border-right: none;
+                overflow-y: auto;
+            }
+
+            .chat-panel[data-mobile-visible="false"] { display: none; }
+
+            .map-panel[data-mobile-visible="true"] {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+
+            .map-panel[data-mobile-visible="false"] { display: none; }
+
+            .panel-divider { display: none; }
+
+            /* Tablet card images */
+            .card .card-image {
+                width: var(--card-image-tablet);
+                min-width: var(--card-image-tablet);
+                height: var(--card-image-tablet);
+                min-height: var(--card-image-tablet);
+                align-items: flex-start;
+                justify-content: flex-start;
+            }
+
+            .card-image img {
+                width: var(--card-image-tablet);
+                height: var(--card-image-tablet);
+            }
+
+            .card-image.no-image {
+                width: var(--card-image-tablet);
+                min-width: var(--card-image-tablet);
+                height: var(--card-image-tablet);
+                min-height: var(--card-image-tablet);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { overflow: auto; }
+
+            .app-container {
+                display: block;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .header {
+                flex-wrap: wrap;
+                padding: 10px 12px;
+                gap: 10px;
+            }
+
+            .header-left { flex-wrap: wrap; gap: 10px; }
+            .logo h1 { font-size: var(--text-xl); }
+            .logo-icon { width: 32px; height: 32px; }
+            .header-stats { gap: 12px; }
+            .stat-value { font-size: var(--text-lg); }
+            .header-right { gap: 10px; }
+            .inventory-bar { padding: 8px 12px; }
+            .inv-chip { padding: 3px 8px; font-size: var(--text-sm); }
+            .main-content { height: auto; }
+            .chat-panel { height: auto; }
+            .chat-header { padding: 10px 12px; }
+
+            .timeline {
+                display: block;
+                padding: 12px;
+                max-height: none;
+                overflow: visible;
+            }
+
+            .card { margin-bottom: 16px; }
+            .card-header { margin-bottom: 10px; }
+            .map-header { padding: 10px 12px; }
+
+            .map-panel[data-mobile-visible="true"] {
+                height: auto;
+                min-height: 300px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .card {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .card .card-image {
+                width: 100%;
+                min-width: 100%;
+                height: var(--card-image-phone);
+                min-height: var(--card-image-phone);
+                max-height: var(--card-image-phone);
+                border-right: none;
+                border-bottom: 1px solid var(--border-subtle);
+                align-items: flex-start;
+                justify-content: flex-start;
+            }
+
+            .card-image img {
+                width: auto;
+                height: var(--card-image-phone);
+                object-fit: cover;
+            }
+
+            .card-image.no-image {
+                width: 100%;
+                min-width: 100%;
+                height: 68px;
+                min-height: 68px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header { padding: 8px 10px; }
+            .logo h1 { font-size: var(--text-lg); }
+            .header-stats { gap: 8px; }
+            .stat-value { font-size: var(--text-md); }
+            .stat-label { font-size: var(--text-xs); }
+            .card-image { height: 160px; max-height: 160px; }
+            .card-image.no-image { height: 100px; }
+        }
+
+        /* ================================================================
+           Section 16: prefers-reduced-motion
+           ================================================================ */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ================================================================
+         Section 17: HTML Template
+         ================================================================ -->
+    <div class="app-container">
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <img class="logo-icon" src="favicon.png" alt="Zork">
+                    <h1>ZorkGPT</h1>
+                </div>
+            </div>
+
+            <div class="header-stats">
+                <div class="stat">
+                    <div class="stat-value" id="generation-num">1</div>
+                    <div class="stat-label">Gen</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value gold" id="high-score">0</div>
+                    <div class="stat-label">High Score</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value gold" id="score">--</div>
+                    <div class="stat-label">Score</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="turn-count">--</div>
+                    <div class="stat-label">Turn</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="death-count">0</div>
+                    <div class="stat-label">Deaths</div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div id="streaming-indicator">
+                    <span class="dot"></span>
+                    <span>Streaming</span>
+                </div>
+                <div class="connection-badge">
+                    <div class="connection-dot" id="connection-dot"></div>
+                    <span class="connection-text" id="connection-text">Connecting...</span>
+                </div>
+                <button class="fullscreen-btn" id="fullscreen-btn" title="Toggle fullscreen">
+                    <svg class="fullscreen-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    </svg>
+                    <svg class="fullscreen-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="inventory-bar">
+            <span class="inventory-label">Inventory</span>
+            <div class="inventory-items" id="inventory-items">
+                <span class="inventory-empty">Loading...</span>
+            </div>
+            <div class="objectives-area">
+                <span class="objectives-label">Objectives</span>
+                <div class="objectives-chips" id="objectives-chips">
+                    <span class="objectives-empty-chip">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-tabs" id="mobile-tabs">
+            <button class="mobile-tab active" data-tab="chat">Adventure Log</button>
+            <button class="mobile-tab" data-tab="map">Map & Objectives</button>
+        </div>
+
+        <main class="main-content">
+            <section class="chat-panel" id="cardsPanel" data-mobile-visible="true">
+                <div class="chat-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="chat-header-title">Adventure Log</span>
+                    <div id="toolStatusBar" class="tool-status-bar hidden">
+                        <span class="status-icon"></span>
+                        <span class="status-text"></span>
+                    </div>
+                </div>
+                <div class="timeline" id="timeline">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <span>Loading adventure...</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="panel-divider" id="panelDivider"></div>
+
+            <section class="map-panel" id="mapPanel" data-mobile-visible="false">
+                <div class="map-header">
+                    <div class="map-header-left">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                        </svg>
+                        <span class="map-header-title">World Map</span>
+                    </div>
+                    <div class="map-stats">
+                        <div><span id="room-count">--</span> rooms</div>
+                        <div><span id="connection-count">--</span> connections</div>
+                    </div>
+                </div>
+
+                <div id="navigationBar" class="navigation-bar hidden">
+                    <div class="nav-destination">
+                        <img id="navDestinationImg" class="nav-thumbnail" src="" alt="">
+                        <div class="nav-info">
+                            <div class="nav-label">Navigating to</div>
+                            <div class="nav-room-name" id="navRoomName">--</div>
+                        </div>
+                    </div>
+                    <div class="nav-progress">
+                        <div class="nav-progress-bar">
+                            <div class="nav-progress-fill" id="navProgressFill"></div>
+                        </div>
+                        <div class="nav-progress-text">
+                            <span id="navStepText">Step 0 of 0</span>
+                        </div>
+                    </div>
+                    <div class="nav-direction">
+                        <div class="nav-direction-label">Next</div>
+                        <div class="nav-direction-value" id="navNextDirection">--</div>
+                    </div>
+                </div>
+
+                <div class="map-container">
+                    <div class="map-diagram" id="map-diagram">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            <span>Loading map...</span>
+                        </div>
+                        <div class="map-controls">
+                            <button class="map-control-btn" id="zoom-in-btn" title="Zoom In">+</button>
+                            <button class="map-control-btn" id="zoom-out-btn" title="Zoom Out">−</button>
+                            <button class="map-control-btn fit-btn" id="fit-btn" title="Fit to View">⤢</button>
+                            <button class="map-control-btn fit-btn" id="center-btn" title="Center on Current Room">◎</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+    /* ================================================================
+       Section 18: Constants & Config
+       ================================================================ */
+    const CONFIG = Object.freeze({
+        POLL_INTERVAL: 3000,
+        POLL_FAST: 1000,
+        WS_RECONNECT_DELAY: 2000,
+        WS_MAX_RECONNECT: 10,
+        CARD_TRANSITION_DELAY: 4500,
+        COLLAPSE_DELAY: 1500,
+        STALE_MINUTES: 5,
+        LOCAL_STORAGE_KEY: 'zorkgpt-cards-width'
+    });
+
+    const ITEM_ICONS = Object.freeze({
+        'brass lantern': '🔦', 'lantern': '🔦',
+        'glass bottle': '🍶', 'bottle': '🍶',
+        'brown sack': '👝', 'sack': '👝',
+        'sword': '⚔️', 'elvish sword': '⚔️',
+        'knife': '🔪', 'nasty knife': '🔪',
+        'rope': '🪢', 'key': '🔑',
+        'egg': '🥚', 'jewel': '💎',
+        'gold': '🪙', 'coin': '🪙', 'pot': '🪙',
+        'food': '🍖', 'garlic': '🧄',
+        'water': '💧', 'map': '🗺️',
+        'torch': '🔥', 'leaflet': '📜',
+        'painting': '🖼️', 'default': '📦'
+    });
+
+    /* ================================================================
+       Section 31: Utilities
+       ================================================================ */
+    const Utils = {
+        escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        },
+
+        extractReasoning(content) {
+            if (!content) return '';
+            try {
+                const parsed = JSON.parse(content);
+                if (parsed.reasoning) return parsed.reasoning;
+            } catch (e) { /* not complete JSON */ }
+            const match = content.match(/"reasoning"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
+            if (match) {
+                return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+            const trimmed = content.trim();
+            if (trimmed.startsWith('{') && !trimmed.endsWith('}')) return 'Analyzing...';
+            return content;
+        },
+
+        getItemIcon(itemName) {
+            const lower = itemName.toLowerCase();
+            for (const [key, icon] of Object.entries(ITEM_ICONS)) {
+                if (lower.includes(key)) return icon;
+            }
+            return ITEM_ICONS.default;
+        },
+
+        abbreviateDirection(direction) {
+            const map = {
+                'north': 'N', 'south': 'S', 'east': 'E', 'west': 'W',
+                'northeast': 'NE', 'northwest': 'NW', 'southeast': 'SE', 'southwest': 'SW',
+                'up': 'U', 'down': 'D', 'in': 'IN', 'out': 'OUT'
+            };
+            const lower = (direction || '').toLowerCase();
+            return map[lower] || direction.toUpperCase().slice(0, 2);
+        },
+
+        getWebSocketUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const custom = params.get('ws');
+            if (custom) return custom;
+            const host = window.location.hostname || 'localhost';
+            return `ws://${host}:8765`;
+        }
+    };
+
+    /* ================================================================
+       Section 19: State Management
+       ================================================================ */
+    const AppState = (() => {
+        const _state = {
+            polled: null,
+            previousPolled: null,
+            streaming: { currentTurn: null, reasoning: '', followup: false, followupReasoning: '' },
+            reasoner: { currentTurn: null, reasoning: '' },
+            memorySynthesis: { turn: null, content: '' },
+            objectiveReview: { turn: null, content: '' },
+            webSearch: { turn: null },
+            ui: {
+                lastTurnCount: null,
+                lastMapHash: null,
+                pendingCardTurn: null,
+                aiDataReceivedTime: null,
+                lastCompletedStreamingTurn: null
+            },
+            connection: {
+                wsConnected: false,
+                pollConnected: false,
+                expectedEpisodeId: null
+            }
+        };
+
+        return {
+            get polled() { return _state.polled; },
+            get previousPolled() { return _state.previousPolled; },
+            get streaming() { return _state.streaming; },
+            get reasoner() { return _state.reasoner; },
+            get memorySynthesis() { return _state.memorySynthesis; },
+            get objectiveReview() { return _state.objectiveReview; },
+            get webSearch() { return _state.webSearch; },
+            get ui() { return _state.ui; },
+            get connection() { return _state.connection; },
+
+            updatePolled(newState) {
+                _state.previousPolled = _state.polled;
+                _state.polled = newState;
+            },
+
+            resetEpisode() {
+                _state.streaming = { currentTurn: null, reasoning: '', followup: false, followupReasoning: '' };
+                _state.reasoner = { currentTurn: null, reasoning: '' };
+                _state.memorySynthesis = { turn: null, content: '' };
+                _state.objectiveReview = { turn: null, content: '' };
+                _state.webSearch = { turn: null };
+                _state.ui.pendingCardTurn = null;
+                _state.ui.aiDataReceivedTime = null;
+                _state.ui.lastTurnCount = null;
+                _state.ui.lastCompletedStreamingTurn = null;
+            }
+        };
+    })();
+
+    /* ================================================================
+       Section 21: Diff Engine
+       ================================================================ */
+    const DiffEngine = {
+        hasHeaderChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            const pm = prev.metadata, cm = curr.metadata;
+            const pc = prev.current_state, cc = curr.current_state;
+            return pm.score !== cm.score || pm.turn_count !== cm.turn_count ||
+                   (pc.death_count || 0) !== (cc.death_count || 0) ||
+                   pm.generation !== cm.generation || pm.high_score !== cm.high_score;
+        },
+
+        hasInventoryChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            const pi = prev.current_state.inventory || [];
+            const ci = curr.current_state.inventory || [];
+            if (pi.length !== ci.length) return true;
+            return pi.some((item, i) => item !== ci[i]);
+        },
+
+        hasObjectivesChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            return JSON.stringify(prev.current_state.objectives) !== JSON.stringify(curr.current_state.objectives);
+        },
+
+        hasTimelineChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            if (prev.metadata.turn_count !== curr.metadata.turn_count) return true;
+            const prevPending = prev.recent_log?.some(e => e.status === 'pending_ai');
+            const currPending = curr.recent_log?.some(e => e.status === 'pending_ai');
+            return prevPending !== currPending;
+        },
+
+        hasMapChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            const pm = prev.map, cm = curr.map;
+            if (!pm || !cm) return true;
+            return pm.total_rooms !== cm.total_rooms ||
+                   pm.total_connections !== cm.total_connections ||
+                   pm.current_room_id !== cm.current_room_id ||
+                   JSON.stringify(pm.raw_data?.connections) !== JSON.stringify(cm.raw_data?.connections);
+        },
+
+        hasNavigationChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            return JSON.stringify(prev.navigation) !== JSON.stringify(curr.navigation);
+        }
+    };
+
+    /* ================================================================
+       Section 20: Template Engine
+       ================================================================ */
+    const Templates = {
+        collapsibleReasoning(text, title = 'AI Reasoning', startExpanded = false, theme = '') {
+            if (!text) return '';
+            const words = text.trim().split(/\s+/);
+            const wordCount = words.length;
+            const collapsedClass = startExpanded ? '' : 'collapsed';
+            const themeClass = theme ? ` theme-${theme}` : '';
+
+            return `
+                <div class="thinking ai-section ${collapsedClass}${themeClass}" data-action="toggle-reasoning">
+                    <div class="thinking-header">
+                        <div class="thinking-header-left">
+                            <span class="thinking-toggle">▼</span>
+                            <span>${Utils.escapeHtml(title)}</span>
+                            <span class="thinking-word-count">${wordCount} words</span>
+                        </div>
+                    </div>
+                    <div class="thinking-content">
+                        <p class="thinking-text">${Utils.escapeHtml(text.trim())}</p>
+                    </div>
+                </div>
+            `;
+        },
+
+        buildAISection(entry, isNewestCard, toolHistory) {
+            if (entry.status === 'pending_ai') {
+                return `
+                    <div class="thinking-placeholder">
+                        <div class="thinking-dots"><span></span><span></span><span></span></div>
+                        <span class="thinking-text">AI is analyzing the situation...</span>
+                    </div>
+                `;
+            }
+
+            if (entry.objective_selection) {
+                const objSel = entry.objective_selection;
+                const firstHtml = entry.reasoning ? this.collapsibleReasoning(entry.reasoning, 'Objective Selection', false, 'gold') : '';
+                const annotation = `
+                    <div class="tool-annotation objective" data-tool="objective">
+                        <span class="annotation-icon">🎯</span>
+                        <span class="annotation-text">Selected: ${Utils.escapeHtml(objSel.objective_id)} - ${Utils.escapeHtml(objSel.objective_text)}</span>
+                    </div>
+                `;
+                const followupHtml = objSel.followup_reasoning ? this.collapsibleReasoning(objSel.followup_reasoning, 'Follow-up Reasoning', false, 'green') : '';
+                const actionHtml = entry.action ? `
+                    <div class="ai-action ai-section">
+                        <div class="ai-action-header">AI Action</div>
+                        <p class="ai-action-text">${Utils.escapeHtml(entry.action)}</p>
+                    </div>
+                ` : '';
+                return firstHtml + annotation + followupHtml + actionHtml;
+            }
+
+            const thinking = entry.reasoning ? this.collapsibleReasoning(entry.reasoning, 'AI Reasoning', false, 'gold') : '';
+            const aiAction = entry.action ? `
+                <div class="ai-action ai-section">
+                    <div class="ai-action-header">AI Action</div>
+                    <p class="ai-action-text">${Utils.escapeHtml(entry.action)}</p>
+                </div>
+            ` : '';
+            let toolAnnotations = '';
+            if (isNewestCard && toolHistory && toolHistory.length > 0) {
+                toolAnnotations = this.buildToolAnnotations(toolHistory);
+            }
+            return thinking + aiAction + toolAnnotations;
+        },
+
+        buildToolAnnotations(history) {
+            if (!history || history.length === 0) return '';
+            return history.map(result => {
+                if (result.tool === 'pathfinder') {
+                    const icon = result.success ? '✓' : '✗';
+                    return `<div class="tool-annotation pathfinder"><span class="annotation-icon">${icon}</span><span>Pathfinder:</span><span class="annotation-text">${Utils.escapeHtml(result.path || 'No path found')} → ${Utils.escapeHtml(result.target || '')}</span></div>`;
+                } else if (result.tool === 'objective') {
+                    return `<div class="tool-annotation objective"><span class="annotation-icon">🎯</span><span>Objective:</span><span class="annotation-text">${Utils.escapeHtml(result.objective || result.objective_id)}</span></div>`;
+                }
+                return '';
+            }).join('');
+        },
+
+        buildMemorySynthesisFromLog(memorySynthesis, turn) {
+            if (!memorySynthesis) return '';
+            const content = Utils.extractReasoning(memorySynthesis.content || '');
+            const wordCount = content.trim().split(/\s+/).length;
+
+            let resultHtml;
+            if (memorySynthesis.memory_created) {
+                resultHtml = `<div class="memory-result memory-created"><span class="memory-result-icon">✅</span><span class="memory-result-text">Memory Created: <strong>${Utils.escapeHtml(memorySynthesis.memory_title || 'Untitled')}</strong></span>${memorySynthesis.memory_category ? `<span class="memory-category-tag">${Utils.escapeHtml(memorySynthesis.memory_category)}</span>` : ''}</div>`;
+            } else {
+                resultHtml = `<div class="memory-result memory-skipped"><span class="memory-result-icon">⏭️</span><span class="memory-result-text">No memory created (action not significant enough)</span></div>`;
+            }
+
+            return `
+                <div class="memory-synthesis-section" data-turn="${turn}">
+                    <div class="thinking ai-section collapsed theme-copper" data-action="toggle-reasoning">
+                        <div class="thinking-header">
+                            <div class="thinking-header-left">
+                                <span class="thinking-toggle">▼</span>
+                                <span>🧠 Memory Synthesis</span>
+                                <span class="thinking-word-count">${wordCount} words</span>
+                            </div>
+                        </div>
+                        <div class="thinking-content">
+                            <p class="thinking-text">${Utils.escapeHtml(content.trim())}</p>
+                        </div>
+                    </div>
+                    ${resultHtml}
+                </div>
+            `;
+        },
+
+        buildObjectiveReviewFromLog(objectiveReview, turn) {
+            if (!objectiveReview) return '';
+            const content = Utils.extractReasoning(objectiveReview.content || '');
+            const wordCount = content.trim().split(/\s+/).length;
+            const completedObjectives = objectiveReview.completed_objectives || [];
+            const updates = objectiveReview.updates || [];
+
+            let resultsHtml = '';
+            if (completedObjectives.length > 0) {
+                resultsHtml += `<div class="objective-result objectives-completed"><span class="objective-result-icon">🏆</span><span class="objective-result-text">Completed: ${completedObjectives.map(obj => `<strong>${Utils.escapeHtml(obj.name || obj.id)}</strong>`).join(', ')}</span></div>`;
+            }
+            if (updates.length > 0) {
+                resultsHtml += `<div class="objective-result objectives-updated"><span class="objective-result-icon">📝</span><span class="objective-result-text">Updated: ${updates.length} objective(s)</span></div>`;
+            }
+            if (completedObjectives.length === 0 && updates.length === 0) {
+                resultsHtml = `<div class="objective-result objectives-unchanged"><span class="objective-result-icon">➡️</span><span class="objective-result-text">No objective changes this turn</span></div>`;
+            }
+
+            return `
+                <div class="objective-review-section" data-turn="${turn}">
+                    <div class="thinking ai-section collapsed theme-teal" data-action="toggle-reasoning">
+                        <div class="thinking-header">
+                            <div class="thinking-header-left">
+                                <span class="thinking-toggle">▼</span>
+                                <span>🎯 Objective Review</span>
+                                <span class="thinking-word-count">${wordCount} words</span>
+                            </div>
+                        </div>
+                        <div class="thinking-content">
+                            <p class="thinking-text">${Utils.escapeHtml(content.trim())}</p>
+                        </div>
+                    </div>
+                    ${resultsHtml}
+                </div>
+            `;
+        },
+
+        buildReasonerCardFromEvent(event) {
+            const reasoningHtml = event.reasoning ? this.collapsibleReasoning(event.reasoning, 'Strategic Analysis', false, 'purple') : '';
+            let approachHtml = '';
+            if (event.suggested_approach) {
+                approachHtml = `<div class="outcome suggested-approach"><div class="outcome-header">🧭 Suggested Approach (Next 10 Turns)</div><p class="outcome-text">${Utils.escapeHtml(event.suggested_approach)}</p></div>`;
+            }
+
+            let objectivesHtml = '';
+            if (event.objectives && event.objectives.length > 0) {
+                objectivesHtml = `
+                    <div class="outcome">
+                        <div class="outcome-header">🎯 Discovered Objectives (${event.objectives.length})</div>
+                        <div class="objectives-list">
+                            ${event.objectives.map(obj => `
+                                <div class="objective-item">
+                                    <span class="objective-id">${Utils.escapeHtml(obj.id)}</span>
+                                    <span class="objective-name">${Utils.escapeHtml(obj.name)}</span>
+                                    <span class="objective-category ${obj.category}">${obj.category}</span>
+                                    <p class="objective-text">${Utils.escapeHtml(obj.text)}</p>
+                                    ${obj.completion_condition ? `<p class="objective-completion">✓ Complete when: ${Utils.escapeHtml(obj.completion_condition)}</p>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                objectivesHtml = `<div class="outcome"><div class="outcome-header">Objectives</div><p class="outcome-text">No new objectives discovered.</p></div>`;
+            }
+
+            return `
+                <div class="card reasoner-card" data-reasoner-turn="${event.turn}">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">🧠</div>
+                            <div>
+                                <div class="card-label">Deep Reasoner</div>
+                                <div class="trigger-reason">${Utils.escapeHtml(event.trigger_reason)}</div>
+                            </div>
+                        </div>
+                        <div class="card-turn">Turn ${event.turn}</div>
+                    </div>
+                    <div class="card-content">
+                        ${reasoningHtml}
+                        ${approachHtml}
+                        ${objectivesHtml}
+                    </div>
+                </div>
+            `;
+        }
+    };
+
+    /* ================================================================
+       Section 23: Streaming Section Lifecycle
+       ================================================================ */
+    const StreamingLifecycle = {
+        create(container, { streamId, theme, title, initialText = 'Analyzing...' }) {
+            const html = `
+                <div class="thinking ai-section streaming theme-${theme}" data-stream-id="${streamId}" data-action="toggle-reasoning">
+                    <div class="thinking-header">
+                        <div class="thinking-header-left">
+                            <span class="thinking-toggle">▼</span>
+                            <span class="streaming-dots"><span></span><span></span><span></span></span>
+                            <span>${Utils.escapeHtml(title)}</span>
+                            <span class="thinking-word-count">0 words</span>
+                        </div>
+                    </div>
+                    <div class="thinking-content">
+                        <p class="thinking-text">${Utils.escapeHtml(initialText)}</p>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+            return container.querySelector(`[data-stream-id="${streamId}"]`);
+        },
+
+        update(streamId, content) {
+            const section = document.querySelector(`[data-stream-id="${streamId}"]`);
+            if (!section) return;
+            const textEl = section.querySelector('.thinking-text');
+            if (textEl) textEl.textContent = content;
+            const wordCount = (content || '').trim().split(/\s+/).length;
+            const wcEl = section.querySelector('.thinking-word-count');
+            if (wcEl) wcEl.textContent = `${wordCount} words`;
+            const tc = section.querySelector('.thinking-content');
+            if (tc) tc.scrollTop = tc.scrollHeight;
+        },
+
+        finalize(streamId, { finalContent, resultHtml, collapseDelay = CONFIG.COLLAPSE_DELAY } = {}) {
+            const section = document.querySelector(`[data-stream-id="${streamId}"]`);
+            if (!section) return;
+            const dots = section.querySelector('.streaming-dots');
+            if (dots) dots.remove();
+            section.classList.remove('streaming');
+            if (finalContent) {
+                const textEl = section.querySelector('.thinking-text');
+                if (textEl) textEl.textContent = finalContent;
+                const wordCount = finalContent.trim().split(/\s+/).length;
+                const wcEl = section.querySelector('.thinking-word-count');
+                if (wcEl) wcEl.textContent = `${wordCount} words`;
+            }
+            if (resultHtml) section.insertAdjacentHTML('afterend', resultHtml);
+            if (collapseDelay > 0) {
+                setTimeout(() => {
+                    section.classList.add('collapsing');
+                    requestAnimationFrame(() => {
+                        section.classList.add('collapsed');
+                        setTimeout(() => section.classList.remove('collapsing'), 500);
+                    });
+                }, collapseDelay);
+            }
+        }
+    };
+
+    /* ================================================================
+       Section 25: Header/Inventory/Objectives Renderers
+       ================================================================ */
+    const HeaderRenderer = {
+        update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const meta = state.metadata;
+            const current = state.current_state;
+
+            document.getElementById('score').textContent = meta.score;
+            document.getElementById('turn-count').textContent = `${meta.turn_count}/${meta.max_turns}`;
+            document.getElementById('death-count').textContent = current.death_count || 0;
+
+            const genEl = document.getElementById('generation-num');
+            if (genEl && meta.generation !== undefined) genEl.textContent = meta.generation;
+
+            const highScoreEl = document.getElementById('high-score');
+            if (highScoreEl && meta.high_score !== undefined) {
+                const old = parseInt(highScoreEl.textContent) || 0;
+                highScoreEl.textContent = meta.high_score;
+                if (meta.high_score > old) {
+                    highScoreEl.classList.add('new-record');
+                    setTimeout(() => highScoreEl.classList.remove('new-record'), 3000);
+                }
+            }
+        }
+    };
+
+    const InventoryRenderer = {
+        update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const inventory = state.current_state.inventory || [];
+            const container = document.getElementById('inventory-items');
+            if (inventory.length === 0) {
+                container.innerHTML = '<span class="inventory-empty">Empty</span>';
+                return;
+            }
+            container.innerHTML = inventory.map(item => `
+                <div class="inv-chip">
+                    <span class="inv-chip-icon">${Utils.getItemIcon(item)}</span>
+                    ${Utils.escapeHtml(item)}
+                </div>
+            `).join('');
+        }
+    };
+
+    const ObjectivesRenderer = {
+        update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const objectives = state.current_state.objectives || [];
+            const container = document.getElementById('objectives-chips');
+            const currentTurn = state.metadata?.turn_count || 0;
+
+            if (objectives.length === 0) {
+                container.innerHTML = '<span class="objectives-empty-chip">None yet</span>';
+                return;
+            }
+
+            const sorted = [...objectives].sort((a, b) => {
+                const order = { 'in_progress': 0, 'pending': 1, 'completed': 2 };
+                const oa = order[a.status] ?? 1, ob = order[b.status] ?? 1;
+                if (oa !== ob) return oa - ob;
+                if (a.status === 'pending' && b.status === 'pending') {
+                    const td = (a.created_turn || 0) - (b.created_turn || 0);
+                    return td !== 0 ? td : (a.id || '').localeCompare(b.id || '');
+                }
+                if (a.status === 'completed' && b.status === 'completed') {
+                    return (b.completed_turn || 0) - (a.completed_turn || 0);
+                }
+                return 0;
+            });
+
+            const active = sorted.filter(o => o.status !== 'completed');
+            const recent = sorted.filter(o => {
+                if (o.status !== 'completed') return false;
+                return currentTurn - (o.completed_turn || 0) <= 7;
+            });
+            const display = [...active, ...recent];
+
+            if (display.length === 0) {
+                container.innerHTML = '<span class="objectives-empty-chip">All done!</span>';
+                return;
+            }
+
+            container.innerHTML = display.map(obj => {
+                let fadeClass = '';
+                if (obj.status === 'completed') {
+                    const since = currentTurn - (obj.completed_turn || 0);
+                    if (since === 6) fadeClass = 'fading-1';
+                    else if (since === 7) fadeClass = 'fading-2';
+                }
+                const tip = (obj.text || '') + (obj.completion_condition ? `\n✓ Complete when: ${obj.completion_condition}` : '');
+                return `<div class="obj-chip ${obj.status} ${fadeClass}" data-id="${obj.id}" title="${Utils.escapeHtml(tip)}"><span class="obj-chip-dot"></span><span class="obj-chip-name">${Utils.escapeHtml(obj.name || obj.id)}</span></div>`;
+            }).join('');
+        }
+    };
+
+    /* ================================================================
+       Section 26: Timeline Renderer (incremental rendering)
+       ================================================================ */
+    const TimelineRenderer = (() => {
+        const _renderedTurns = new Map(); // turn -> { element, hash }
+        let _roomImageMap = null;
+
+        function setRoomImageMap(map) { _roomImageMap = map; }
+
+        function _computeHash(entry) {
+            return `${entry.turn}|${entry.status || 'complete'}|${entry.action || ''}|${entry.memory_synthesis ? 1 : 0}|${entry.objective_review ? 1 : 0}`;
+        }
+
+        function _buildCardHtml(entry, isRoomChange, roomName, imagePath, hasImage, isNewestCard) {
+            const isPending = entry.status === 'pending_ai';
+            const cardClasses = ['card'];
+            if (isRoomChange) cardClasses.push('room-change-card');
+            if (isPending) cardClasses.push('pending-ai');
+
+            const aiSection = Templates.buildAISection(entry, isNewestCard, AppState.polled?.tool_status?.history);
+            const memorySynthesisSection = entry.memory_synthesis ? Templates.buildMemorySynthesisFromLog(entry.memory_synthesis, entry.turn) : '';
+            const objectiveReviewSection = entry.objective_review ? Templates.buildObjectiveReviewFromLog(entry.objective_review, entry.turn) : '';
+
+            const roomChangeLabel = isRoomChange ? `<span class="room-change">${Utils.escapeHtml(roomName)}</span>` : '';
+
+            const imageHtml = hasImage ? `
+                <div class="card-image">
+                    <img src="${imagePath}" alt="${roomName}" onerror="this.parentElement.classList.add('no-image'); this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/></svg><span>No image</span>'"/>
+                </div>
+            ` : `
+                <div class="card-image no-image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    <span>No image</span>
+                </div>
+            `;
+
+            return `
+                <article class="${cardClasses.join(' ')}" data-turn="${entry.turn}" data-status="${entry.status || 'complete'}">
+                    ${imageHtml}
+                    <div class="card-content">
+                        <div class="card-header">
+                            ${roomChangeLabel}
+                            <span class="turn-badge">Turn ${entry.turn}</span>
+                        </div>
+                        <div class="outcome">
+                            <div class="outcome-header">Game Response</div>
+                            <p class="outcome-text">${Utils.escapeHtml(entry.zork_response)}</p>
+                        </div>
+                        ${aiSection}
+                        ${memorySynthesisSection}
+                        ${objectiveReviewSection}
+                    </div>
+                </article>
+            `;
+        }
+
+        function update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const logs = state.recent_log || [];
+            const container = document.getElementById('timeline');
+            const currentRoomId = state.map?.current_room_id;
+            const currentTurnCount = state.metadata?.turn_count || 0;
+
+            if (logs.length === 0) {
+                container.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>No actions yet</span></div>`;
+                AppState.ui.lastTurnCount = null;
+                _renderedTurns.clear();
+                return;
+            }
+
+            const isNewTurn = AppState.ui.lastTurnCount !== null && currentTurnCount > AppState.ui.lastTurnCount;
+            AppState.ui.lastTurnCount = currentTurnCount;
+
+            // Skip rebuild if streaming just completed this turn
+            if (AppState.ui.lastCompletedStreamingTurn === currentTurnCount) {
+                AppState.ui.lastCompletedStreamingTurn = null;
+                const existing = container.querySelector(`.card[data-turn="${currentTurnCount}"]`);
+                if (existing && existing.dataset.status === 'complete') return;
+            }
+
+            // Calculate result rooms
+            const logsWithResultRoom = logs.map((entry, idx) => {
+                const resultRoomId = idx < logs.length - 1 ? logs[idx + 1].location_id : currentRoomId;
+                return { ...entry, resultRoomId };
+            });
+
+            const displayLogs = logsWithResultRoom.reverse();
+
+            // Preserve streaming sections
+            const preservedSections = {};
+            const preservedReasonerCards = [];
+            container.querySelectorAll('.memory-synthesis-section, .objective-review-section').forEach(section => {
+                const turn = section.dataset.turn;
+                if (turn) {
+                    if (!preservedSections[turn]) preservedSections[turn] = {};
+                    if (section.classList.contains('memory-synthesis-section')) preservedSections[turn].memory = section.cloneNode(true);
+                    else if (section.classList.contains('objective-review-section')) preservedSections[turn].objective = section.cloneNode(true);
+                }
+            });
+            container.querySelectorAll('.reasoner-card').forEach(card => {
+                if (card.querySelector('.thinking.streaming')) preservedReasonerCards.push(card.cloneNode(true));
+            });
+
+            // Build all cards
+            let prevResultRoomId = null;
+            const cardsHtml = displayLogs.map((entry, idx) => {
+                const resultRoomId = entry.resultRoomId;
+                const isRoomChange = resultRoomId !== prevResultRoomId;
+                prevResultRoomId = resultRoomId;
+                const isNewestCard = idx === 0;
+                const hasImage = _roomImageMap && _roomImageMap[resultRoomId];
+                const imagePath = hasImage ? `./room_images/${_roomImageMap[resultRoomId]}` : null;
+                const roomName = entry.extracted_info?.current_location_name || entry.location_name || 'Unknown';
+                return _buildCardHtml(entry, isRoomChange, roomName, imagePath, hasImage, isNewestCard);
+            }).join('');
+
+            // Apply to DOM
+            if (isNewTurn && container.children.length > 0) {
+                setTimeout(() => {
+                    container.innerHTML = cardsHtml;
+                    _restorePreserved(container, preservedSections, preservedReasonerCards);
+                    _insertReasonerCards(container);
+                    container.scrollTop = 0;
+                    const newCard = container.querySelector('.card');
+                    if (newCard) {
+                        newCard.classList.add('entering');
+                        setTimeout(() => newCard.classList.remove('entering'), 2100);
+                    }
+                }, 100);
+            } else {
+                container.innerHTML = cardsHtml;
+                _restorePreserved(container, preservedSections, preservedReasonerCards);
+                _insertReasonerCards(container);
+                if (container.children.length > 0) {
+                    const firstCard = container.querySelector('.card');
+                    if (firstCard && !firstCard.classList.contains('entering') && AppState.ui.lastTurnCount === currentTurnCount && !AppState.previousPolled) {
+                        firstCard.classList.add('entering');
+                        setTimeout(() => firstCard.classList.remove('entering'), 2100);
+                    }
+                }
+            }
+        }
+
+        function _restorePreserved(container, sections, reasonerCards) {
+            for (const [turn, data] of Object.entries(sections)) {
+                const card = container.querySelector(`.card[data-turn="${turn}"]`);
+                if (card) {
+                    const cc = card.querySelector('.card-content');
+                    if (cc) {
+                        if (data.memory && !cc.querySelector('.memory-synthesis-section')) cc.appendChild(data.memory);
+                        if (data.objective && !cc.querySelector('.objective-review-section')) cc.appendChild(data.objective);
+                    }
+                }
+            }
+            reasonerCards.forEach(card => {
+                const rt = card.dataset.reasonerTurn;
+                if (rt && !container.querySelector(`.reasoner-card[data-reasoner-turn="${rt}"]`)) {
+                    const tc = container.querySelector(`.card[data-turn="${rt}"]`);
+                    if (tc) tc.parentNode.insertBefore(card, tc);
+                    else container.appendChild(card);
+                }
+            });
+        }
+
+        function _insertReasonerCards(container) {
+            const events = AppState.polled?.reasoner_events || [];
+            if (events.length === 0) return;
+            const displayed = container.querySelectorAll('.card[data-turn]');
+            if (displayed.length === 0) return;
+            let minTurn = Infinity, maxTurn = -Infinity;
+            displayed.forEach(c => {
+                const t = parseInt(c.dataset.turn);
+                if (t < minTurn) minTurn = t;
+                if (t > maxTurn) maxTurn = t;
+            });
+            events.forEach(event => {
+                if (event.turn < minTurn || event.turn > maxTurn) return;
+                if (container.querySelector(`.reasoner-card[data-reasoner-turn="${event.turn}"]`)) return;
+                const html = Templates.buildReasonerCardFromEvent(event);
+                const turnCard = container.querySelector(`.card[data-turn="${event.turn}"]`);
+                if (turnCard) {
+                    turnCard.insertAdjacentHTML('beforebegin', html);
+                } else {
+                    const all = container.querySelectorAll('.card[data-turn]');
+                    let inserted = false;
+                    for (const c of all) {
+                        if (parseInt(c.dataset.turn) < event.turn) {
+                            c.insertAdjacentHTML('beforebegin', html);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) container.insertAdjacentHTML('beforeend', html);
+                }
+            });
+        }
+
+        function clear() {
+            _renderedTurns.clear();
+            const container = document.getElementById('timeline');
+            if (container) container.innerHTML = '';
+        }
+
+        return { update, clear, setRoomImageMap };
+    })();
+
+    /* ================================================================
+       Section 27: Map Renderer (Cytoscape)
+       ================================================================ */
+    const MapRenderer = (() => {
+        let cy = null;
+        let roomImageMap = null;
+
+        function init() {
+            const container = document.getElementById('map-diagram');
+            const cyContainer = document.createElement('div');
+            cyContainer.id = 'cytoscape-map';
+            const loading = container.querySelector('.loading');
+            if (loading) loading.remove();
+            container.insertBefore(cyContainer, container.firstChild);
+
+            const styles = getComputedStyle(document.documentElement);
+            const bgCard = styles.getPropertyValue('--bg-card').trim();
+            const borderColor = styles.getPropertyValue('--border-color').trim();
+            const textSecondary = styles.getPropertyValue('--text-secondary').trim();
+            const bgPrimary = styles.getPropertyValue('--bg-primary').trim();
+            const textDim = styles.getPropertyValue('--text-dim').trim();
+            const accentGold = styles.getPropertyValue('--accent-gold').trim();
+
+            cy = cytoscape({
+                container: document.getElementById('cytoscape-map'),
+                style: [
+                    { selector: 'node', style: {
+                        'width': 70, 'height': 70, 'shape': 'round-rectangle',
+                        'background-fit': 'cover', 'background-color': bgCard,
+                        'border-width': 2, 'border-color': borderColor,
+                        'label': 'data(label)', 'text-valign': 'bottom', 'text-halign': 'center',
+                        'text-margin-y': 6, 'font-size': 10,
+                        'font-family': 'JetBrains Mono, Monaco, Consolas, monospace',
+                        'color': textSecondary, 'text-wrap': 'wrap', 'text-max-width': 80,
+                        'text-background-color': bgPrimary, 'text-background-opacity': 0.8,
+                        'text-background-padding': 2, 'text-background-shape': 'roundrectangle'
+                    }},
+                    { selector: 'node[hasImage]', style: { 'background-image': 'data(imageUrl)', 'background-fit': 'cover' }},
+                    { selector: 'node.current', style: {
+                        'border-width': 4, 'border-color': accentGold, 'z-index': 999,
+                        'shadow-blur': 15, 'shadow-color': 'rgba(212, 168, 75, 0.5)', 'shadow-opacity': 0.8
+                    }},
+                    { selector: 'node.neighbor', style: { 'border-width': 3, 'border-color': '#4a9a6a', 'background-color': '#2a4a3a', 'z-index': 100 }},
+                    { selector: 'edge.neighbor-edge', style: {
+                        'line-color': '#4a9a6a', 'width': 3, 'z-index': 100,
+                        'label': 'data(label)', 'font-size': 10, 'font-weight': 'bold',
+                        'color': '#7ac99a', 'text-background-color': '#1a1a1a',
+                        'text-background-opacity': 0.85, 'text-background-padding': '3px', 'text-margin-y': -8
+                    }},
+                    { selector: 'node:selected', style: { 'border-color': '#6b9fc4', 'border-width': 3 }},
+                    { selector: 'edge', style: {
+                        'width': 2, 'line-color': textDim, 'target-arrow-color': textDim,
+                        'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 0.7
+                    }},
+                    { selector: 'edge.highlighted', style: { 'line-color': accentGold, 'target-arrow-color': accentGold, 'width': 3 }},
+                    { selector: 'node.maze', style: { 'width': 50, 'height': 50, 'background-color': '#2a2520', 'border-color': '#3a342e', 'font-size': 8 }},
+                    { selector: 'node.deadend', style: { 'width': 45, 'height': 45, 'background-color': '#332820', 'border-style': 'dashed' }},
+                    { selector: 'node.hover', style: { 'border-color': '#6b9fc4', 'border-width': 3 }},
+                    { selector: 'edge.neighbor', style: { 'line-color': '#6b9fc4', 'target-arrow-color': '#6b9fc4', 'width': 3, 'z-index': 100 }}
+                ],
+                layout: { name: 'preset' },
+                minZoom: 0.1, maxZoom: 3, wheelSensitivity: 0.2
+            });
+
+            cy.userPanningEnabled(true);
+            cy.userZoomingEnabled(true);
+            _initControls();
+            _initHoverEffects();
+        }
+
+        function _initControls() {
+            document.getElementById('zoom-in-btn')?.addEventListener('click', () => {
+                cy.zoom({ level: cy.zoom() * 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+            });
+            document.getElementById('zoom-out-btn')?.addEventListener('click', () => {
+                cy.zoom({ level: cy.zoom() * 0.7, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+            });
+            document.getElementById('fit-btn')?.addEventListener('click', () => cy.fit(undefined, 30));
+            document.getElementById('center-btn')?.addEventListener('click', () => {
+                const curr = cy.nodes('.current');
+                if (curr.length > 0) cy.animate({ center: { eles: curr }, zoom: 1.2, duration: 500, easing: 'ease-in-out-cubic' });
+            });
+        }
+
+        function _initHoverEffects() {
+            cy.on('mouseover', 'node', evt => {
+                const node = evt.target;
+                node.addClass('hover');
+                node.neighborhood().edges().addClass('neighbor');
+                node.neighborhood().nodes().addClass('neighbor');
+            });
+            cy.on('mouseout', 'node', evt => {
+                const node = evt.target;
+                node.removeClass('hover');
+                node.neighborhood().edges().removeClass('neighbor');
+                node.neighborhood().nodes().removeClass('neighbor');
+            });
+        }
+
+        function _calculateBFS(startId, connections, rooms) {
+            const distances = {};
+            const visited = new Set();
+            if (!startId || !rooms[startId]) {
+                Object.keys(rooms).forEach(id => distances[id] = 0);
+                return distances;
+            }
+            const sid = startId.toString();
+            distances[sid] = 0;
+            visited.add(sid);
+            const queue = [sid];
+            while (queue.length > 0) {
+                const cur = queue.shift();
+                const d = distances[cur];
+                Object.values(connections[cur] || {}).forEach(tid => {
+                    const ts = tid.toString();
+                    if (!visited.has(ts)) {
+                        visited.add(ts);
+                        distances[ts] = d + 1;
+                        queue.push(ts);
+                    }
+                });
+            }
+            const maxD = Math.max(...Object.values(distances), 0) + 1;
+            Object.keys(rooms).forEach(id => { if (distances[id] === undefined) distances[id] = maxD; });
+            return distances;
+        }
+
+        function rebuild(mapData) {
+            if (!cy) return;
+            const rooms = mapData.raw_data.rooms || {};
+            const connections = mapData.raw_data.connections || {};
+            const currentRoomId = mapData.current_room_id;
+            const distances = _calculateBFS(currentRoomId, connections, rooms);
+
+            const nodes = [];
+            Object.keys(rooms).forEach(roomId => {
+                const room = rooms[roomId];
+                const imageFile = roomImageMap && roomImageMap[roomId];
+                const hasImage = !!imageFile;
+                const roomName = (room.name || '').toLowerCase();
+                const distance = distances[roomId] !== undefined ? distances[roomId] : 999;
+                const classes = [];
+                if (roomId == currentRoomId) classes.push('current');
+                else if (distance === 1) classes.push('neighbor');
+                if (roomName.includes('maze')) classes.push('maze');
+                if (roomName.includes('dead end')) classes.push('deadend');
+
+                nodes.push({
+                    data: {
+                        id: `room-${roomId}`, roomId, label: room.name || `Room ${roomId}`,
+                        hasImage: hasImage ? 'yes' : undefined,
+                        imageUrl: hasImage ? `./room_images/${imageFile}` : null,
+                        distance
+                    },
+                    classes: classes.join(' ')
+                });
+            });
+
+            const edges = [];
+            const edgeSet = new Set();
+            const curStr = currentRoomId ? currentRoomId.toString() : null;
+            const dirLabels = {};
+            if (curStr && connections[curStr]) {
+                Object.entries(connections[curStr]).forEach(([dir, toId]) => {
+                    const k = `${curStr}-${toId}`;
+                    const r = `${toId}-${curStr}`;
+                    const abbrev = Utils.abbreviateDirection(dir);
+                    dirLabels[k] = abbrev;
+                    dirLabels[r] = abbrev;
+                });
+            }
+            Object.entries(connections).forEach(([fromId, exits]) => {
+                Object.entries(exits).forEach(([dir, toId]) => {
+                    const k = `${fromId}-${toId}`;
+                    const r = `${toId}-${fromId}`;
+                    if (!edgeSet.has(k)) {
+                        edgeSet.add(k);
+                        edgeSet.add(r);
+                        const isNE = (fromId === curStr || toId.toString() === curStr);
+                        const label = isNE ? (dirLabels[k] || dirLabels[r] || '') : '';
+                        edges.push({
+                            data: { id: `edge-${fromId}-${toId}`, source: `room-${fromId}`, target: `room-${toId}`, label },
+                            classes: isNE ? 'neighbor-edge' : ''
+                        });
+                    }
+                });
+            });
+
+            cy.elements().remove();
+            cy.add([...nodes, ...edges]);
+
+            cy.layout({
+                name: 'breadthfirst',
+                roots: currentRoomId ? `#room-${currentRoomId}` : undefined,
+                directed: false, grid: true, spacingFactor: 1.2, padding: 30,
+                animate: false, fit: false,
+                transform: (node, pos) => ({ x: pos.x, y: -pos.y })
+            }).run();
+
+            setTimeout(() => {
+                const curr = cy.nodes('.current');
+                if (curr.length > 0) {
+                    cy.animate({ center: { eles: curr }, zoom: Math.min(cy.zoom(), 0.8), duration: 500, easing: 'ease-in-out-cubic' });
+                } else {
+                    cy.fit(undefined, 30);
+                }
+            }, 150);
+        }
+
+        function updateHighlight(currentRoomId) {
+            if (!cy) return;
+            cy.nodes().removeClass('current');
+            if (currentRoomId) {
+                const n = cy.getElementById(`room-${currentRoomId}`);
+                if (n) n.addClass('current');
+            }
+        }
+
+        function update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const mapData = state.map;
+
+            document.getElementById('room-count').textContent = mapData?.total_rooms || '--';
+            document.getElementById('connection-count').textContent = mapData?.total_connections || '--';
+
+            if (!mapData || !mapData.raw_data) {
+                if (cy) cy.elements().remove();
+                return;
+            }
+
+            const mapHash = JSON.stringify({
+                rooms: Object.keys(mapData.raw_data.rooms || {}),
+                connections: mapData.raw_data.connections,
+                currentRoom: mapData.current_room_id
+            });
+
+            if (AppState.ui.lastMapHash !== mapHash) {
+                AppState.ui.lastMapHash = mapHash;
+                rebuild(mapData);
+            } else {
+                updateHighlight(mapData.current_room_id);
+            }
+        }
+
+        function resize() { if (cy) cy.resize(); }
+        function fit() { if (cy) cy.fit(undefined, 30); }
+        function setImageMap(map) { roomImageMap = map; }
+        function getCy() { return cy; }
+
+        return { init, update, resize, fit, setImageMap, getCy };
+    })();
+
+    /* ================================================================
+       Section 28: Navigation Bar
+       ================================================================ */
+    const NavigationRenderer = {
+        update() {
+            const navBar = document.getElementById('navigationBar');
+            if (!navBar) return;
+            const navigation = AppState.polled?.navigation;
+
+            if (!navigation || !navigation.navigation_active) {
+                navBar.classList.add('hidden');
+                return;
+            }
+
+            navBar.classList.remove('hidden');
+            const roomImageMap = MapRenderer.getCy() ? null : null; // uses the shared map
+            const navRoomName = document.getElementById('navRoomName');
+            const navDestImg = document.getElementById('navDestinationImg');
+            const navStepText = document.getElementById('navStepText');
+            const navProgressFill = document.getElementById('navProgressFill');
+            const navNextDir = document.getElementById('navNextDirection');
+
+            if (navRoomName) navRoomName.textContent = navigation.target_room || 'Unknown';
+            if (navDestImg) {
+                // Try to get image from the room image map
+                const targetId = navigation.target_room_id;
+                navDestImg.src = '';
+                navDestImg.style.display = 'none';
+                // Image loading handled by the global roomImageMap
+            }
+            const cur = navigation.current_step || 0;
+            const total = navigation.total_steps || 0;
+            if (navStepText) navStepText.textContent = `Step ${cur} of ${total}`;
+            if (navProgressFill && total > 0) navProgressFill.style.width = `${(cur / total) * 100}%`;
+            if (navNextDir) navNextDir.textContent = navigation.current_direction || '--';
+        }
+    };
+
+    /* ================================================================
+       Section 22: WebSocket Handler
+       ================================================================ */
+    const WSHandler = (() => {
+        let ws = null;
+        let reconnectAttempts = 0;
+
+        function connect() {
+            try {
+                ws = new WebSocket(Utils.getWebSocketUrl());
+                ws.onopen = () => {
+                    reconnectAttempts = 0;
+                    AppState.connection.wsConnected = true;
+                    _updateStreamingIndicator(true);
+                };
+                ws.onmessage = (event) => {
+                    try { _dispatch(JSON.parse(event.data)); }
+                    catch (e) { console.error('WS parse error:', e); }
+                };
+                ws.onclose = () => {
+                    AppState.connection.wsConnected = false;
+                    _updateStreamingIndicator(false);
+                    _scheduleReconnect();
+                };
+                ws.onerror = () => {
+                    AppState.connection.wsConnected = false;
+                    _updateStreamingIndicator(false);
+                };
+            } catch (e) {
+                _updateStreamingIndicator(false);
+            }
+        }
+
+        function _scheduleReconnect() {
+            if (reconnectAttempts < CONFIG.WS_MAX_RECONNECT) {
+                reconnectAttempts++;
+                setTimeout(connect, CONFIG.WS_RECONNECT_DELAY);
+            }
+        }
+
+        function _updateStreamingIndicator(connected) {
+            const el = document.getElementById('streaming-indicator');
+            if (el) el.style.display = connected ? 'flex' : 'none';
+        }
+
+        function _dispatch(msg) {
+            const handlers = {
+                'generation_start': _handleGenerationStart,
+                'turn_start': _handleTurnStart,
+                'reasoning_chunk': _handleReasoningChunk,
+                'turn_complete': _handleTurnComplete,
+                'sync_state': _handleSyncState,
+                'tool_status': (m) => _handleToolStatus(m.data),
+                'objective_followup': _handleObjectiveFollowup,
+                'objective_followup_chunk': _handleObjectiveFollowupChunk,
+                'reasoner_start': _handleReasonerStart,
+                'reasoner_chunk': _handleReasonerChunk,
+                'reasoner_phase2_start': () => {},
+                'reasoner_complete': _handleReasonerComplete,
+                'memory_synthesis_start': _handleMemSynthStart,
+                'memory_synthesis_chunk': _handleMemSynthChunk,
+                'memory_synthesis_complete': _handleMemSynthComplete,
+                'objective_review_start': _handleObjReviewStart,
+                'objective_review_chunk': _handleObjReviewChunk,
+                'objective_review_complete': _handleObjReviewComplete,
+                'web_search_start': _handleWebSearchStart,
+                'web_search_complete': _handleWebSearchComplete,
+                'reasoner_tool_call': _handleReasonerToolCall
+            };
+            const handler = handlers[msg.type];
+            if (handler) handler(msg);
+        }
+
+        function _handleGenerationStart(msg) {
+            const genEl = document.getElementById('generation-num');
+            if (genEl) genEl.textContent = msg.generation || 1;
+
+            const hsEl = document.getElementById('high-score');
+            if (hsEl) {
+                const old = parseInt(hsEl.textContent) || 0;
+                hsEl.textContent = msg.high_score || 0;
+                if ((msg.high_score || 0) > old) {
+                    hsEl.classList.add('new-record');
+                    setTimeout(() => hsEl.classList.remove('new-record'), 3000);
+                }
+            }
+
+            const deathEl = document.getElementById('death-count');
+            if (deathEl && msg.total_deaths !== undefined) deathEl.textContent = msg.total_deaths;
+
+            AppState.resetEpisode();
+            AppState.connection.expectedEpisodeId = msg.episode_id || null;
+
+            const timeline = document.getElementById('timeline');
+            if (timeline) timeline.innerHTML = `<div class="card" style="text-align:center;padding:20px;opacity:0.6;"><p>Generation ${msg.generation} starting...</p></div>`;
+
+            document.getElementById('inventory-items').innerHTML = '<div class="empty-state">Starting new game...</div>';
+            document.getElementById('objectives-chips').innerHTML = '';
+            const scoreEl = document.getElementById('score');
+            if (scoreEl) scoreEl.textContent = '0';
+
+            AppState.updatePolled(null);
+            Poller.fetchNow();
+        }
+
+        function _handleTurnStart(msg) {
+            AppState.streaming.currentTurn = msg.turn;
+            AppState.streaming.reasoning = '';
+        }
+
+        function _handleReasoningChunk(msg) {
+            if (msg.turn !== AppState.streaming.currentTurn) return;
+            AppState.streaming.reasoning = msg.content;
+            const streamId = `reasoning-${msg.turn}`;
+            const pendingCard = document.querySelector(`.card[data-turn="${msg.turn}"][data-status="pending_ai"]`);
+            if (!pendingCard) return;
+            const placeholder = pendingCard.querySelector('.thinking-placeholder');
+            if (!placeholder) return;
+
+            let section = placeholder.querySelector(`[data-stream-id="${streamId}"]`);
+            if (!section) {
+                placeholder.innerHTML = '';
+                section = StreamingLifecycle.create(placeholder, { streamId, theme: 'gold', title: 'AI Reasoning', initialText: AppState.streaming.reasoning });
+                placeholder.insertAdjacentHTML('beforeend', `
+                    <div class="ai-action ai-section streaming-action-display" style="margin-top:12px;opacity:0.5;">
+                        <div class="ai-action-header">AI Action</div>
+                        <p class="ai-action-text">Waiting for reasoning to complete...</p>
+                    </div>
+                `);
+            }
+            StreamingLifecycle.update(streamId, AppState.streaming.reasoning);
+
+            if (msg.action) {
+                const actionEl = placeholder.querySelector('.streaming-action-display');
+                if (actionEl) {
+                    actionEl.style.opacity = '1';
+                    const at = actionEl.querySelector('.ai-action-text');
+                    if (at) at.textContent = msg.action;
+                }
+            }
+        }
+
+        function _handleTurnComplete(msg) {
+            if (msg.turn !== AppState.streaming.currentTurn) return;
+            const pendingCard = document.querySelector(`.card[data-turn="${msg.turn}"][data-status="pending_ai"]`);
+            if (pendingCard) {
+                const placeholder = pendingCard.querySelector('.thinking-placeholder');
+                const hasFollowup = pendingCard.querySelector('[data-stream-id^="followup-"]');
+
+                if (hasFollowup) {
+                    const goldSection = pendingCard.querySelector(`[data-stream-id="reasoning-${msg.turn}"]`);
+                    const greenSection = pendingCard.querySelector(`[data-stream-id="followup-${msg.turn}"]`);
+                    const annotation = pendingCard.querySelector('.followup-annotation');
+                    const firstText = goldSection?.querySelector('.thinking-text')?.textContent || '';
+                    const followupText = greenSection?.querySelector('.thinking-text')?.textContent || '';
+                    const annotationText = annotation?.querySelector('.annotation-text')?.textContent || '';
+
+                    const firstHtml = firstText ? Templates.collapsibleReasoning(firstText.trim(), 'Objective Selection', false, 'gold') : '';
+                    const objAnnotation = annotationText ? `<div class="tool-annotation objective" data-tool="objective"><span class="annotation-icon">🎯</span><span class="annotation-text">${Utils.escapeHtml(annotationText)}</span></div>` : '';
+                    const followupHtml = followupText ? Templates.collapsibleReasoning(followupText.trim(), 'Follow-up Reasoning', false, 'green') : '';
+                    const actionHtml = msg.action ? `<div class="ai-action ai-section"><div class="ai-action-header">AI Action</div><p class="ai-action-text">${Utils.escapeHtml(msg.action)}</p></div>` : '';
+
+                    if (placeholder) placeholder.outerHTML = firstHtml + objAnnotation + followupHtml + actionHtml;
+                } else {
+                    if (placeholder) {
+                        const finalR = msg.reasoning || AppState.streaming.reasoning;
+                        const rHtml = finalR ? Templates.collapsibleReasoning(finalR, 'AI Reasoning', false, 'gold') : '';
+                        const aHtml = msg.action ? `<div class="ai-action ai-section"><div class="ai-action-header">AI Action</div><p class="ai-action-text">${Utils.escapeHtml(msg.action)}</p></div>` : '';
+                        placeholder.outerHTML = rHtml + aHtml;
+                    }
+                }
+
+                pendingCard.dataset.status = 'complete';
+                pendingCard.classList.remove('pending-ai');
+                _collapseAfterDelay(pendingCard, 1000);
+            }
+
+            AppState.streaming.currentTurn = null;
+            AppState.streaming.reasoning = '';
+            AppState.streaming.followup = false;
+            AppState.ui.lastCompletedStreamingTurn = msg.turn;
+            Poller.fetchNow();
+        }
+
+        function _handleSyncState(msg) {
+            if (msg.is_streaming) {
+                AppState.streaming.currentTurn = msg.turn;
+                AppState.streaming.reasoning = msg.reasoning || '';
+            }
+        }
+
+        function _handleToolStatus(status) {
+            const statusBar = document.getElementById('toolStatusBar');
+            if (!statusBar) return;
+            if (status.active) {
+                const isObj = status.active === 'objective' || status.active === 'objective_followup';
+                if (!isObj) _showToolOverlay(status.active, status.data);
+                _updateToolStatusBar(status.active, status.data, true);
+            } else {
+                _hideToolOverlay();
+                if (status.history && status.history.length > 0) _showToolAnnotations(status.history);
+                _updateToolStatusBar(null, null, false);
+            }
+        }
+
+        function _showToolOverlay(toolType, data) {
+            const card = document.querySelector('.card:first-child');
+            if (!card) return;
+            const existing = card.querySelector('.tool-overlay');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.className = `tool-overlay ${toolType}`;
+            let icon, label, detail;
+            if (toolType === 'pathfinder') { icon = '🧭'; label = 'Finding Path...'; detail = `Navigating to ${data?.target_name || 'destination'}`; }
+            else if (toolType === 'objective_followup') { icon = '🎯'; label = 'Objective Selected'; detail = `Generating action for: ${data?.objective_text || 'objective'}`; }
+            else { icon = '🎯'; label = 'Setting Objective...'; detail = `Activating: ${data?.objective_text || 'objective'}`; }
+            overlay.innerHTML = `<div class="tool-icon">${icon}</div><div class="tool-label">${label}</div><div class="tool-detail">${Utils.escapeHtml(detail)}</div>`;
+            card.style.position = 'relative';
+            card.appendChild(overlay);
+        }
+
+        function _hideToolOverlay() {
+            const overlay = document.querySelector('.tool-overlay');
+            if (overlay) {
+                overlay.style.animation = 'overlayFadeOut 0.5s ease forwards';
+                setTimeout(() => overlay.remove(), 500);
+            }
+        }
+
+        function _showToolAnnotations(history) {
+            const card = document.querySelector('.card:first-child');
+            if (!card) return;
+            const aiAction = card.querySelector('.ai-action');
+            if (!aiAction) return;
+            history.forEach(result => {
+                if (card.querySelector(`.tool-annotation[data-tool="${result.tool}"]`)) return;
+                const ann = document.createElement('div');
+                ann.className = `tool-annotation ${result.tool}`;
+                ann.dataset.tool = result.tool;
+                if (result.tool === 'pathfinder') {
+                    ann.innerHTML = `<span class="annotation-icon">${result.success ? '✓' : '✗'}</span><span>Pathfinder:</span><span class="annotation-text">${Utils.escapeHtml(result.path || 'No path found')}</span>`;
+                } else if (result.tool === 'objective') {
+                    ann.innerHTML = `<span class="annotation-icon">🎯</span><span>Objective:</span><span class="annotation-text">${Utils.escapeHtml(result.objective || result.objective_id)}</span>`;
+                }
+                aiAction.parentNode.insertBefore(ann, aiAction.nextSibling);
+            });
+        }
+
+        function _updateToolStatusBar(toolType, data, processing) {
+            const bar = document.getElementById('toolStatusBar');
+            if (!bar) return;
+            const icon = bar.querySelector('.status-icon');
+            const text = bar.querySelector('.status-text');
+            if (!processing) { bar.classList.add('hidden'); bar.classList.remove('processing'); return; }
+            bar.classList.remove('hidden'); bar.classList.add('processing');
+            if (toolType === 'pathfinder') { icon.textContent = '🧭'; text.textContent = `Pathfinding to ${data?.target_name || 'destination'}...`; }
+            else if (toolType === 'objective') { icon.textContent = '🎯'; text.textContent = 'Setting objective...'; }
+            else if (toolType === 'objective_followup') { icon.textContent = '🎯'; text.textContent = 'Generating action for objective...'; }
+        }
+
+        function _handleObjectiveFollowup(msg) {
+            const card = document.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (!card) return;
+            const followupId = `followup-${msg.turn}`;
+            const existing = card.querySelector(`[data-stream-id="${followupId}"]`);
+            if (existing) {
+                StreamingLifecycle.finalize(followupId, { finalContent: msg.reasoning, collapseDelay: 0 });
+                let actionSection = card.querySelector('.ai-action');
+                if (msg.action) {
+                    if (!actionSection) {
+                        existing.insertAdjacentHTML('afterend', `<div class="ai-action ai-section"><div class="ai-action-header">AI Action</div><p class="ai-action-text">${Utils.escapeHtml(msg.action)}</p></div>`);
+                    } else {
+                        const at = actionSection.querySelector('.ai-action-text');
+                        if (at) at.textContent = msg.action;
+                    }
+                }
+                AppState.streaming.followup = false;
+                return;
+            }
+            // Fallback: build from scratch
+            const placeholder = card.querySelector('.thinking-placeholder');
+            const goldSection = card.querySelector(`[data-stream-id="reasoning-${msg.turn}"]`);
+            const target = placeholder || (goldSection ? goldSection.parentElement : null);
+            if (!target) return;
+            const firstText = goldSection?.querySelector('.thinking-text')?.textContent || placeholder?.querySelector('.thinking-text')?.textContent || '';
+            const firstHtml = firstText ? Templates.collapsibleReasoning(firstText.trim(), 'Objective Selection', false, 'gold') : '';
+            const annotation = `<div class="tool-annotation objective followup-annotation" data-tool="objective"><span class="annotation-icon">🎯</span><span class="annotation-text">Selected: ${Utils.escapeHtml(msg.objective_text || msg.objective_id)}</span></div>`;
+            const followupHtml = msg.reasoning ? Templates.collapsibleReasoning(msg.reasoning, 'Follow-up Reasoning', false, 'green') : '';
+            const actionHtml = msg.action ? `<div class="ai-action ai-section"><div class="ai-action-header">AI Action</div><p class="ai-action-text">${Utils.escapeHtml(msg.action)}</p></div>` : '';
+            if (placeholder) placeholder.outerHTML = firstHtml + annotation + followupHtml + actionHtml;
+            else if (goldSection) { const ad = card.querySelector('.streaming-action-display'); if (ad) ad.remove(); goldSection.outerHTML = firstHtml + annotation + followupHtml + actionHtml; }
+        }
+
+        function _handleObjectiveFollowupChunk(msg) {
+            const card = document.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (!card) return;
+            const followupId = `followup-${msg.turn}`;
+            let section = card.querySelector(`[data-stream-id="${followupId}"]`);
+            if (!section) {
+                const goldId = `reasoning-${msg.turn}`;
+                StreamingLifecycle.finalize(goldId, { collapseDelay: 100 });
+                const ad = card.querySelector('.streaming-action-display');
+                if (ad) ad.remove();
+                const annHtml = `<div class="tool-annotation objective followup-annotation" data-tool="objective"><span class="annotation-icon">🎯</span><span class="annotation-text">Selected: ${Utils.escapeHtml(msg.objective_text || msg.objective_id)}</span></div>`;
+                const goldSection = card.querySelector(`[data-stream-id="${goldId}"]`);
+                const placeholder = card.querySelector('.thinking-placeholder');
+                if (goldSection) goldSection.insertAdjacentHTML('afterend', annHtml);
+                else if (placeholder) placeholder.insertAdjacentHTML('beforeend', annHtml);
+                const container = placeholder || card.querySelector('.card-content');
+                if (container) section = StreamingLifecycle.create(container, { streamId: followupId, theme: 'green', title: 'Follow-up Reasoning', initialText: msg.reasoning || 'Generating follow-up...' });
+                AppState.streaming.followup = true;
+            } else {
+                StreamingLifecycle.update(followupId, msg.reasoning);
+            }
+            if (msg.action) {
+                let as = card.querySelector('.ai-action:not(.streaming-action-display)');
+                if (!as) {
+                    const f = card.querySelector(`[data-stream-id="${followupId}"]`);
+                    if (f) f.insertAdjacentHTML('afterend', `<div class="ai-action ai-section"><div class="ai-action-header">AI Action</div><p class="ai-action-text">${Utils.escapeHtml(msg.action)}</p></div>`);
+                } else {
+                    const at = as.querySelector('.ai-action-text');
+                    if (at) at.textContent = msg.action;
+                }
+            }
+            AppState.streaming.followupReasoning = msg.reasoning || '';
+        }
+
+        function _handleReasonerStart(msg) {
+            AppState.reasoner.currentTurn = msg.turn;
+            AppState.reasoner.reasoning = '';
+            const timeline = document.getElementById('timeline');
+            if (!timeline) return;
+            const cardHtml = `<div class="card reasoner-card" data-reasoner-turn="${msg.turn}"><div class="card-header"><div class="card-title"><div class="card-icon">🧠</div><div><div class="card-label">Deep Reasoner</div><div class="trigger-reason">${Utils.escapeHtml(msg.trigger_reason)}</div></div></div><div class="card-turn">Turn ${msg.turn}</div></div><div class="card-content"></div></div>`;
+            const turnCard = timeline.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (turnCard) turnCard.insertAdjacentHTML('beforebegin', cardHtml);
+            else {
+                const all = timeline.querySelectorAll('.card[data-turn]');
+                let inserted = false;
+                for (const c of all) { if (parseInt(c.dataset.turn) < msg.turn) { c.insertAdjacentHTML('beforebegin', cardHtml); inserted = true; break; } }
+                if (!inserted) timeline.insertAdjacentHTML('beforeend', cardHtml);
+            }
+            const newCard = timeline.querySelector(`.reasoner-card[data-reasoner-turn="${msg.turn}"]`);
+            if (newCard) {
+                StreamingLifecycle.create(newCard.querySelector('.card-content'), { streamId: `reasoner-${msg.turn}`, theme: 'purple', title: 'Strategic Analysis', initialText: 'Analyzing game state...' });
+                newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function _handleReasonerChunk(msg) {
+            if (msg.turn !== AppState.reasoner.currentTurn) return;
+            AppState.reasoner.reasoning = msg.reasoning;
+            StreamingLifecycle.update(`reasoner-${msg.turn}`, msg.reasoning || 'Analyzing...');
+        }
+
+        function _handleReasonerComplete(msg) {
+            const finalR = msg.reasoning || AppState.reasoner.reasoning;
+            let resultsHtml = '';
+            if (msg.suggested_approach) resultsHtml += `<div class="outcome suggested-approach"><div class="outcome-header">🧭 Suggested Approach (Next 10 Turns)</div><p class="outcome-text">${Utils.escapeHtml(msg.suggested_approach)}</p></div>`;
+            if (msg.objectives && msg.objectives.length > 0) {
+                resultsHtml += `<div class="outcome"><div class="outcome-header">🎯 Discovered Objectives (${msg.objectives.length})</div><div class="objectives-list">${msg.objectives.map(obj => `<div class="objective-item"><span class="objective-id">${Utils.escapeHtml(obj.id)}</span><span class="objective-name">${Utils.escapeHtml(obj.name)}</span><span class="objective-category ${obj.category}">${obj.category}</span><p class="objective-text">${Utils.escapeHtml(obj.text)}</p>${obj.completion_condition ? `<p class="objective-completion">✓ Complete when: ${Utils.escapeHtml(obj.completion_condition)}</p>` : ''}</div>`).join('')}</div></div>`;
+            } else {
+                resultsHtml += `<div class="outcome"><div class="outcome-header">Objectives</div><p class="outcome-text">No new objectives discovered.</p></div>`;
+            }
+            StreamingLifecycle.finalize(`reasoner-${msg.turn}`, { finalContent: finalR, resultHtml: resultsHtml, collapseDelay: CONFIG.COLLAPSE_DELAY });
+            AppState.reasoner.currentTurn = null;
+            AppState.reasoner.reasoning = '';
+        }
+
+        function _handleReasonerToolCall(msg) {
+            const card = document.querySelector(`.reasoner-card[data-reasoner-turn="${msg.turn}"]`);
+            if (!card) return;
+            const cc = card.querySelector('.card-content');
+            if (!cc) return;
+
+            const icon = msg.tool_name === 'web_search' ? '🔍' : '🌐';
+            const label = msg.tool_name === 'web_search' ? 'Web Search' : 'Web Crawl';
+            const toolId = `reasoner-tool-${msg.turn}-${Date.now()}`;
+
+            if (msg.status === 'started') {
+                const html = `<div class="reasoner-tool-call" data-tool-id="${toolId}" style="margin:6px 0;padding:8px 12px;background:rgba(59,130,246,0.08);border-left:3px solid var(--accent-blue,#3b82f6);border-radius:4px;font-size:0.85em;">
+                    <span style="margin-right:6px;">${icon}</span>
+                    <strong>${label}:</strong> <span class="tool-query">${Utils.escapeHtml(msg.query)}</span>
+                    <span class="streaming-dots" style="margin-left:8px;"><span></span><span></span><span></span></span>
+                </div>`;
+                // Insert before the streaming thinking section so it appears inline
+                const thinkingSection = cc.querySelector(`[data-stream-id="reasoner-${msg.turn}"]`);
+                if (thinkingSection) thinkingSection.insertAdjacentHTML('beforebegin', html);
+                else cc.insertAdjacentHTML('beforeend', html);
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else if (msg.status === 'completed') {
+                // Find the most recent started tool call and mark it complete
+                const pendingTools = cc.querySelectorAll('.reasoner-tool-call .streaming-dots');
+                if (pendingTools.length > 0) {
+                    const lastPending = pendingTools[pendingTools.length - 1];
+                    const parentDiv = lastPending.closest('.reasoner-tool-call');
+                    lastPending.remove();
+                    if (msg.result_summary) {
+                        parentDiv.insertAdjacentHTML('beforeend', ` <span style="opacity:0.7;">— ${Utils.escapeHtml(msg.result_summary)}</span>`);
+                    }
+                    parentDiv.style.borderLeftColor = 'var(--accent-green, #22c55e)';
+                }
+            }
+        }
+
+        function _handleMemSynthStart(msg) {
+            AppState.memorySynthesis.turn = msg.turn;
+            AppState.memorySynthesis.content = '';
+            const card = document.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (!card) return;
+            const cc = card.querySelector('.card-content');
+            if (cc) {
+                cc.insertAdjacentHTML('beforeend', `<div class="memory-synthesis-section" data-turn="${msg.turn}"></div>`);
+                const wrapper = cc.querySelector(`.memory-synthesis-section[data-turn="${msg.turn}"]`);
+                StreamingLifecycle.create(wrapper, { streamId: `memory-${msg.turn}`, theme: 'copper', title: `🧠 Memory Synthesis — ${msg.location_name}`, initialText: 'Analyzing action for memory creation...' });
+            }
+        }
+
+        function _handleMemSynthChunk(msg) {
+            if (msg.turn !== AppState.memorySynthesis.turn) return;
+            AppState.memorySynthesis.content = msg.content;
+            StreamingLifecycle.update(`memory-${msg.turn}`, Utils.extractReasoning(msg.content));
+        }
+
+        function _handleMemSynthComplete(msg) {
+            let resultHtml;
+            if (msg.memory_created) {
+                resultHtml = `<div class="memory-result memory-created"><span class="memory-result-icon">✅</span><span class="memory-result-text">Memory Created: <strong>${Utils.escapeHtml(msg.memory_title || 'Untitled')}</strong></span>${msg.memory_category ? `<span class="memory-category-tag">${Utils.escapeHtml(msg.memory_category)}</span>` : ''}</div>`;
+            } else {
+                resultHtml = `<div class="memory-result memory-skipped"><span class="memory-result-icon">⏭️</span><span class="memory-result-text">No memory created (action not significant enough)</span></div>`;
+            }
+            StreamingLifecycle.finalize(`memory-${msg.turn}`, { finalContent: Utils.extractReasoning(msg.content), resultHtml, collapseDelay: CONFIG.COLLAPSE_DELAY });
+            AppState.memorySynthesis.turn = null;
+            AppState.memorySynthesis.content = '';
+        }
+
+        function _handleObjReviewStart(msg) {
+            AppState.objectiveReview.turn = msg.turn;
+            AppState.objectiveReview.content = '';
+            const card = document.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (!card) return;
+            const cc = card.querySelector('.card-content');
+            if (!cc) return;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'objective-review-section';
+            wrapper.dataset.turn = msg.turn;
+            cc.appendChild(wrapper);
+            StreamingLifecycle.create(wrapper, { streamId: `objective-${msg.turn}`, theme: 'teal', title: `🎯 Objective Review — Checking ${msg.objective_count} active objectives`, initialText: 'Evaluating objective completion...' });
+        }
+
+        function _handleObjReviewChunk(msg) {
+            if (msg.turn !== AppState.objectiveReview.turn) return;
+            AppState.objectiveReview.content = msg.content;
+            StreamingLifecycle.update(`objective-${msg.turn}`, Utils.extractReasoning(msg.content));
+        }
+
+        function _handleObjReviewComplete(msg) {
+            let resultsHtml = '';
+            if (msg.completed_objectives?.length > 0) resultsHtml += `<div class="objective-result objectives-completed"><span class="objective-result-icon">🏆</span><span class="objective-result-text">Completed: ${msg.completed_objectives.map(obj => `<strong>${Utils.escapeHtml(obj.name || obj.id)}</strong>`).join(', ')}</span></div>`;
+            if (msg.updates?.length > 0) resultsHtml += `<div class="objective-result objectives-updated"><span class="objective-result-icon">📝</span><span class="objective-result-text">Updated: ${msg.updates.length} objective(s)</span></div>`;
+            if ((!msg.completed_objectives || msg.completed_objectives.length === 0) && (!msg.updates || msg.updates.length === 0)) resultsHtml = `<div class="objective-result objectives-unchanged"><span class="objective-result-icon">➡️</span><span class="objective-result-text">No objective changes this turn</span></div>`;
+            StreamingLifecycle.finalize(`objective-${msg.turn}`, { finalContent: Utils.extractReasoning(msg.content), resultHtml: resultsHtml, collapseDelay: CONFIG.COLLAPSE_DELAY });
+            AppState.objectiveReview.turn = null;
+            AppState.objectiveReview.content = '';
+        }
+
+        function _handleWebSearchStart(msg) {
+            AppState.webSearch.turn = msg.turn;
+            const card = document.querySelector(`.card[data-turn="${msg.turn}"]`);
+            if (!card) return;
+            const cc = card.querySelector('.card-content');
+            if (cc) {
+                cc.insertAdjacentHTML('beforeend', `<div class="web-search-section" data-turn="${msg.turn}"></div>`);
+                const wrapper = cc.querySelector(`.web-search-section[data-turn="${msg.turn}"]`);
+                StreamingLifecycle.create(wrapper, { streamId: `websearch-${msg.turn}`, theme: 'blue', title: `🔍 Web Search — ${Utils.escapeHtml(msg.query)}`, initialText: 'Searching the web for puzzle hints...' });
+            }
+        }
+
+        function _handleWebSearchComplete(msg) {
+            let resultHtml;
+            if (msg.success) resultHtml = `<div class="memory-result memory-created"><span class="memory-result-icon">🔍</span><span class="memory-result-text">Search complete — results injected into agent context</span></div>`;
+            else resultHtml = `<div class="memory-result memory-skipped"><span class="memory-result-icon">⚠️</span><span class="memory-result-text">Search returned no useful results</span></div>`;
+            StreamingLifecycle.finalize(`websearch-${msg.turn}`, { finalContent: Utils.escapeHtml(msg.results_summary || 'No details available'), resultHtml, collapseDelay: CONFIG.COLLAPSE_DELAY });
+            AppState.webSearch.turn = null;
+        }
+
+        function _collapseAfterDelay(card, delay = 1000) {
+            setTimeout(() => {
+                const sections = card.querySelectorAll('.thinking:not(.collapsed)');
+                sections.forEach((section, i) => {
+                    setTimeout(() => {
+                        section.classList.add('collapsing');
+                        requestAnimationFrame(() => {
+                            section.classList.add('collapsed');
+                            setTimeout(() => section.classList.remove('collapsing'), 500);
+                        });
+                    }, i * 150);
+                });
+            }, delay);
+        }
+
+        return { connect };
+    })();
+
+    /* ================================================================
+       Section 24: Polling & State Fetch
+       ================================================================ */
+    const Poller = (() => {
+        let intervalId = null;
+        let currentInterval = CONFIG.POLL_INTERVAL;
+
+        function start() {
+            fetchNow();
+            intervalId = setInterval(fetchNow, currentInterval);
+        }
+
+        async function fetchNow() {
+            try {
+                const response = await fetch('./current_state.json');
+                if (!response.ok) { _setConnection(false); return; }
+                const newState = await response.json();
+                const isFresh = _isTimestampFresh(newState.metadata.timestamp);
+
+                if (AppState.connection.expectedEpisodeId && newState.metadata.episode_id !== AppState.connection.expectedEpisodeId) {
+                    _setConnection(isFresh);
+                    return;
+                }
+                if (AppState.connection.expectedEpisodeId && newState.metadata.episode_id === AppState.connection.expectedEpisodeId) {
+                    AppState.connection.expectedEpisodeId = null;
+                }
+
+                const oldHasPending = AppState.polled?.recent_log?.some(e => e.status === 'pending_ai');
+                const newHasPending = newState.recent_log?.some(e => e.status === 'pending_ai');
+                const pendingEntry = newState.recent_log?.find(e => e.status === 'pending_ai');
+
+                if (AppState.ui.pendingCardTurn && oldHasPending && !newHasPending) {
+                    AppState.ui.aiDataReceivedTime = Date.now();
+                }
+
+                if (newHasPending && pendingEntry) AppState.ui.pendingCardTurn = pendingEntry.turn;
+                else if (!newHasPending) AppState.ui.pendingCardTurn = null;
+
+                _adjustInterval(newHasPending);
+
+                const episodeChanged = AppState.polled && AppState.polled.metadata.episode_id !== newState.metadata.episode_id;
+                if (episodeChanged) AppState.resetEpisode();
+
+                const turnChanged = !AppState.polled || AppState.polled.metadata.turn_count !== newState.metadata.turn_count;
+                const pendingChanged = oldHasPending !== newHasPending;
+
+                if (turnChanged || pendingChanged || episodeChanged) {
+                    AppState.updatePolled(newState);
+                    _updateUI();
+                }
+
+                _setConnection(isFresh);
+            } catch (e) {
+                _setConnection(false);
+            }
+        }
+
+        function _updateUI() {
+            const prev = AppState.previousPolled;
+            const curr = AppState.polled;
+            if (!curr) return;
+
+            if (DiffEngine.hasHeaderChanged(prev, curr)) HeaderRenderer.update();
+            if (DiffEngine.hasInventoryChanged(prev, curr)) InventoryRenderer.update();
+            if (DiffEngine.hasObjectivesChanged(prev, curr)) ObjectivesRenderer.update();
+            if (DiffEngine.hasTimelineChanged(prev, curr)) TimelineRenderer.update();
+            if (DiffEngine.hasMapChanged(prev, curr)) MapRenderer.update();
+            if (DiffEngine.hasNavigationChanged(prev, curr)) NavigationRenderer.update();
+        }
+
+        function _adjustInterval(hasPending) {
+            const target = hasPending ? CONFIG.POLL_FAST : CONFIG.POLL_INTERVAL;
+            if (currentInterval !== target) {
+                currentInterval = target;
+                if (intervalId) clearInterval(intervalId);
+                intervalId = setInterval(fetchNow, target);
+            }
+        }
+
+        function _isTimestampFresh(ts) {
+            if (!ts) return false;
+            try { return (new Date() - new Date(ts)) / 60000 < CONFIG.STALE_MINUTES; }
+            catch { return false; }
+        }
+
+        function _setConnection(connected) {
+            const dot = document.getElementById('connection-dot');
+            const text = document.getElementById('connection-text');
+            if (connected) { dot.classList.add('connected'); text.textContent = 'Live'; }
+            else { dot.classList.remove('connected'); text.textContent = AppState.polled ? 'Stale' : 'Disconnected'; }
+        }
+
+        return { start, fetchNow };
+    })();
+
+    /* ================================================================
+       Section 29: Panel Divider (leak-fixed)
+       ================================================================ */
+    const PanelDivider = {
+        init() {
+            const divider = document.getElementById('panelDivider');
+            const cardsPanel = document.getElementById('cardsPanel');
+            const mainContent = document.querySelector('.main-content');
+            if (!divider || !cardsPanel || !mainContent) return;
+
+            if (window.innerWidth > 1200) {
+                const saved = localStorage.getItem(CONFIG.LOCAL_STORAGE_KEY);
+                if (saved) cardsPanel.style.width = saved;
+            } else {
+                cardsPanel.style.width = '';
+                divider.style.display = 'none';
+            }
+
+            let startX, startWidth;
+
+            const onMove = (e) => {
+                const delta = e.clientX - startX;
+                const newW = startWidth + delta;
+                const containerW = mainContent.offsetWidth;
+                const clamped = Math.max(400, Math.min(containerW * 0.8, newW));
+                cardsPanel.style.width = clamped + 'px';
+                MapRenderer.resize();
+            };
+
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                divider.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                localStorage.setItem(CONFIG.LOCAL_STORAGE_KEY, cardsPanel.style.width);
+                setTimeout(() => { MapRenderer.resize(); MapRenderer.fit(); }, 100);
+            };
+
+            divider.addEventListener('mousedown', (e) => {
+                startX = e.clientX;
+                startWidth = cardsPanel.offsetWidth;
+                divider.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+    };
+
+    /* ================================================================
+       Section 30: Mobile / Responsive
+       ================================================================ */
+    const MobileHandler = {
+        init() {
+            // Event delegation for mobile tabs
+            document.getElementById('mobile-tabs')?.addEventListener('click', (e) => {
+                const tab = e.target.closest('.mobile-tab');
+                if (!tab) return;
+                this.switchTab(tab.dataset.tab);
+            });
+
+            // Handle resize
+            window.addEventListener('resize', () => this._onResize());
+
+            // Initial state
+            if (window.innerWidth <= 1200) this._applyMobileState();
+        },
+
+        switchTab(tab) {
+            const chatPanel = document.getElementById('cardsPanel');
+            const mapPanel = document.getElementById('mapPanel');
+            const tabs = document.querySelectorAll('.mobile-tab');
+
+            tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+
+            if (tab === 'chat') {
+                chatPanel.dataset.mobileVisible = 'true';
+                mapPanel.dataset.mobileVisible = 'false';
+            } else {
+                chatPanel.dataset.mobileVisible = 'false';
+                mapPanel.dataset.mobileVisible = 'true';
+                setTimeout(() => { MapRenderer.resize(); MapRenderer.fit(); }, 100);
+            }
+        },
+
+        _onResize() {
+            const chatPanel = document.getElementById('cardsPanel');
+            const mapPanel = document.getElementById('mapPanel');
+            const divider = document.getElementById('panelDivider');
+
+            if (window.innerWidth > 1200) {
+                // Desktop: remove mobile data attributes, restore
+                chatPanel.removeAttribute('data-mobile-visible');
+                mapPanel.removeAttribute('data-mobile-visible');
+                chatPanel.style.display = '';
+                mapPanel.style.display = '';
+                if (divider) divider.style.display = '';
+                const saved = localStorage.getItem(CONFIG.LOCAL_STORAGE_KEY);
+                chatPanel.style.width = saved || '';
+                // Reset tabs
+                document.querySelectorAll('.mobile-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'chat'));
+            } else {
+                if (divider) divider.style.display = 'none';
+                chatPanel.style.width = '';
+                this._applyMobileState();
+            }
+        },
+
+        _applyMobileState() {
+            const chatPanel = document.getElementById('cardsPanel');
+            const mapPanel = document.getElementById('mapPanel');
+            const activeTab = document.querySelector('.mobile-tab.active');
+            const tab = activeTab?.dataset.tab || 'chat';
+            chatPanel.dataset.mobileVisible = tab === 'chat' ? 'true' : 'false';
+            mapPanel.dataset.mobileVisible = tab === 'map' ? 'true' : 'false';
+        }
+    };
+
+    /* ================================================================
+       Section 32: Initialization
+       ================================================================ */
+    (async function init() {
+        // Load room image map
+        let roomImageMap = null;
+        try {
+            const resp = await fetch('./room_images/room_image_map.json');
+            if (resp.ok) {
+                roomImageMap = await resp.json();
+                console.log(`Loaded room image map: ${Object.keys(roomImageMap).length} rooms`);
+            }
+        } catch (e) { console.warn('Failed to load room image map:', e); }
+
+        TimelineRenderer.setRoomImageMap(roomImageMap);
+        MapRenderer.setImageMap(roomImageMap);
+
+        // Event delegation for reasoning toggle
+        document.getElementById('timeline')?.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action="toggle-reasoning"]');
+            if (target) target.classList.toggle('collapsed');
+        });
+
+        // Fullscreen
+        document.getElementById('fullscreen-btn')?.addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+            else document.exitFullscreen();
+        });
+
+        // Navigation image loading (needs roomImageMap reference)
+        const origNavUpdate = NavigationRenderer.update;
+        NavigationRenderer.update = function() {
+            origNavUpdate.call(this);
+            const nav = AppState.polled?.navigation;
+            if (nav?.navigation_active && roomImageMap) {
+                const img = document.getElementById('navDestinationImg');
+                const file = roomImageMap[nav.target_room_id];
+                if (img && file) { img.src = `./room_images/${file}`; img.style.display = 'block'; }
+            }
+        };
+
+        // Init modules
+        MapRenderer.init();
+        PanelDivider.init();
+        MobileHandler.init();
+        Poller.start();
+        WSHandler.connect();
+    })();
+    </script>
+</body>
+</html>
