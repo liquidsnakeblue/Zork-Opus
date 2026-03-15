@@ -65,11 +65,16 @@ class SynthesisResponse(BaseModel):
     @model_validator(mode='after')
     def _validate(self) -> 'SynthesisResponse':
         if self.should_remember:
-            if not self.category: raise ValueError("category required")
-            if not self.memory_title: raise ValueError("memory_title required")
-            if not self.memory_text: raise ValueError("memory_text required")
+            if not self.category:
+                self.category = "NOTE"  # Default instead of crashing
+            if not self.memory_title:
+                self.should_remember = False
+                return self
+            if not self.memory_text:
+                self.should_remember = False
+                return self
             if self.persistence not in ("core", "permanent", "ephemeral"):
-                raise ValueError(f"bad persistence: {self.persistence}")
+                self.persistence = "permanent"  # Default instead of crashing
         if self.invalidate_memory_titles and not (self.invalidation_reason or "").strip():
             self.invalidation_reason = "Contradicted by new observation"
         overlap = self.supersedes_memory_titles & self.invalidate_memory_titles
