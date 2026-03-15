@@ -44,9 +44,9 @@ reasoner_base_url = "https://api.schuyler.ai/v1"
 # Retry / Circuit Breaker
 # ══════════════════════════════════════════════════════════════
 [tool.zorkopus.retry]
-max_retries = 5
+max_retries = 3
 initial_delay = 1.0
-max_delay = 60.0
+max_delay = 30.0
 exponential_base = 2.0
 jitter_factor = 0.1
 timeout_seconds = 1800.0
