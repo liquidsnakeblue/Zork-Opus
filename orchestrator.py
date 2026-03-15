@@ -523,9 +523,12 @@ class Orchestrator:
 
     def _generate_turn1_objectives(self):
         """Generate initial objectives before game loop (only if resuming from prior session)."""
-        has_memories = self.memory.cache.total_persistent > 0
-        has_map = len(self.map_mgr.game_map.rooms) > 0
-        if has_memories or has_map:
+        # Check for cross-episode data (memories from PREVIOUS episodes, not current init)
+        # A fresh start has at most 1 room (the starting room added during init)
+        # and only spawn-detection "core" memories. Prior sessions have many more.
+        has_prior_memories = self.memory.cache.total_persistent > 1
+        has_prior_map = len(self.map_mgr.game_map.rooms) > 1
+        if has_prior_memories or has_prior_map:
             self.logger.info("Resuming session — generating initial objectives")
             self.objectives.run_reasoner("")
         else:

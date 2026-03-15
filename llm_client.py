@@ -159,7 +159,8 @@ class LLMClient:
                     self._backoff(attempt, "rate_limit")
                     continue
                 if resp.status_code >= 500:
-                    self._backoff(attempt, f"server_{resp.status_code}")
+                    body_preview = resp.text[:200] if resp.text else "(empty)"
+                    self._backoff(attempt, f"server_{resp.status_code}: {body_preview}")
                     continue
 
                 resp.raise_for_status()
