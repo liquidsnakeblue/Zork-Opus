@@ -464,9 +464,11 @@ class Orchestrator:
         # ── Reasoner update (periodic + ensure objectives exist) ──
         if self.objectives.should_run_reasoner():
             self.objectives.run_reasoner(response)
-        elif not self.gs.active_objectives and self.objectives.should_run_reasoner():
+        elif not self.gs.active_objectives and self.gs.turn_count > 0:
             # All objectives completed/abandoned — trigger reasoner for new ones
-            self.objectives.run_reasoner(response)
+            # (bypasses interval check but still respects failure cooldown)
+            if (self.gs.turn_count - self.objectives._reasoner_fail_turn) >= 5:
+                self.objectives.run_reasoner(response)
 
         # Log turn completion
         self.logger.info(
