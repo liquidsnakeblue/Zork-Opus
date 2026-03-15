@@ -71,7 +71,7 @@ class SynthesisResponse(BaseModel):
             if self.persistence not in ("core", "permanent", "ephemeral"):
                 raise ValueError(f"bad persistence: {self.persistence}")
         if self.invalidate_memory_titles and not (self.invalidation_reason or "").strip():
-            raise ValueError("invalidation_reason required with invalidate_memory_titles")
+            self.invalidation_reason = "Contradicted by new observation"
         overlap = self.supersedes_memory_titles & self.invalidate_memory_titles
         if overlap:
             raise ValueError(f"Can't both supersede and invalidate: {overlap}")
