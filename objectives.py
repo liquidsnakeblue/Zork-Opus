@@ -262,7 +262,43 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
         except Exception as e:
             if self.logger: self.logger.error(f"Reasoner failed: {e}")
             self._reasoner_fail_turn = self.gs.turn_count
+            # Fallback: create basic objectives if none exist
+            if not self.gs.active_objectives:
+                self._create_fallback_objectives()
             return None
+
+    def _create_fallback_objectives(self):
+        """Create basic objectives when the reasoner LLM is unavailable."""
+        existing_names = {o.name.lower().strip() for o in self.gs.objectives
+                         if o.status in ("pending", "in_progress")}
+        fallbacks = [
+            ObjectiveDefinition(
+                category="exploration", name="Explore New Areas",
+                text="Discover at least 3 new rooms by exploring unexplored exits",
+                completion_condition="3 new rooms discovered"),
+            ObjectiveDefinition(
+                category="action", name="Collect Valuables",
+                text="Pick up any treasures or useful items found during exploration",
+                completion_condition="new valuable item in inventory"),
+            ObjectiveDefinition(
+                category="action", name="Deposit Treasures",
+                text="Return treasures to the Living Room trophy case to score points",
+                completion_condition="score increased from depositing treasure"),
+        ]
+        for defn in fallbacks:
+            if defn.name.lower().strip() in existing_names:
+                continue
+            obj_id = self.gs.next_objective_id(defn.category)
+            from state import Objective
+            obj = Objective(
+                id=obj_id, category=defn.category, name=defn.name,
+                text=defn.text, completion_condition=defn.completion_condition,
+                created_turn=self.gs.turn_count,
+            )
+            self.gs.objectives.append(obj)
+            existing_names.add(defn.name.lower().strip())
+        if self.logger:
+            self.logger.info("Created fallback objectives (reasoner unavailable)")
 
     def _apply_reasoner_result(self, result: ReasonerResponse):
         # Abandon objectives
