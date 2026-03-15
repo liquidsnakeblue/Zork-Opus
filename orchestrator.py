@@ -689,11 +689,11 @@ class Orchestrator:
         elif self.config.enable_objective_based_progress and self.gs.completed_objectives_list:
             last_turn = max(c["completed_turn"] for c in self.gs.completed_objectives_list)
             if (self.gs.turn_count - last_turn) <= 1:
-                # Objective completion — partial reprieve (5 turns), not full reset
+                # Objective completion — partial reprieve (3 turns), not full reset
                 # This prevents exploration objectives from indefinitely masking score stagnation
                 stuck_so_far = self.gs.turn_count - self._last_score_turn
-                if stuck_so_far > 5:
-                    self._last_score_turn = max(self._last_score_turn, self.gs.turn_count - (stuck_so_far - 5))
+                if stuck_so_far > 3:
+                    self._last_score_turn = max(self._last_score_turn, self.gs.turn_count - (stuck_so_far - 3))
 
     def _build_stuck_warning(self) -> str:
         if not self.config.enable_stuck_warnings: return ""
