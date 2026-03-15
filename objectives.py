@@ -145,6 +145,7 @@ There are TWO types of objectives:
 - Do NOT suggest acquiring items already in inventory: {self.gs.current_inventory}
 - Keep objectives SHORT and CLEAN (no long paragraphs)
 - Aim for 3-7 total active objectives
+- **NEVER create objectives that duplicate existing active ones** (check CURRENT OBJECTIVES above)
 - **ONE LOCATION PER OBJECTIVE (MANDATORY)**: Each objective MUST target exactly ONE location. Multi-location objectives break pathfinder navigation. Split multi-location tasks into separate objectives.
   * BAD: "Collect sword from Living Room, rope from Attic, and sack from Kitchen"
   * GOOD: "Collect Sword" at L193, "Collect Rope" at L201, "Collect Sack" at L203
@@ -239,8 +240,12 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
             if obj and obj.status in ("pending", "in_progress"):
                 obj.status = "abandoned"
 
-        # Add new objectives
+        # Add new objectives (skip duplicates)
+        existing_names = {o.name.lower().strip() for o in self.gs.objectives
+                         if o.status in ("pending", "in_progress")}
         for defn in result.new_objectives[:3]:
+            if defn.name.lower().strip() in existing_names:
+                continue  # Skip duplicate
             obj_id = self.gs.next_objective_id(defn.category)
             obj = Objective(
                 id=obj_id, category=defn.category, name=defn.name,
@@ -249,6 +254,7 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
                 target_location_id=defn.target_location_id,
             )
             self.gs.objectives.append(obj)
+            existing_names.add(defn.name.lower().strip())
 
         # Update approach
         if result.suggested_approach:
