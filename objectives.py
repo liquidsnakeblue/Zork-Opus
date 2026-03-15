@@ -6,7 +6,7 @@ Uses the reasoner model for strategic objective generation.
 import json
 import re
 from typing import List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from collections import deque
 
 from config import Config
@@ -20,6 +20,24 @@ class ObjectiveDefinition(BaseModel):
     text: str
     completion_condition: str
     target_location_id: Optional[int] = None
+
+    @field_validator("target_location_id", mode="before")
+    @classmethod
+    def _coerce_location_id(cls, v):
+        """Handle LLM returning 'L41', 'Gallery', etc. instead of plain int."""
+        if v is None:
+            return None
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            # Strip "L" prefix: "L41" → "41"
+            cleaned = re.sub(r'^[Ll]', '', v.strip())
+            try:
+                return int(cleaned)
+            except ValueError:
+                # Non-numeric string like "Gallery" — ignore
+                return None
+        return None
 
 
 class ReasonerResponse(BaseModel):
