@@ -2557,7 +2557,7 @@
 
             document.getElementById('score').textContent = meta.score;
             document.getElementById('turn-count').textContent = `${meta.turn_count}/${meta.max_turns}`;
-            document.getElementById('death-count').textContent = current.death_count || 0;
+            document.getElementById('death-count').textContent = meta.total_deaths || current.death_count || 0;
 
             const genEl = document.getElementById('generation-num');
             if (genEl && meta.generation !== undefined) genEl.textContent = meta.generation;

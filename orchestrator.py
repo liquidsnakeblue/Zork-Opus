@@ -778,6 +778,7 @@ class Orchestrator:
                     "generation": self.session_stats.get('generation', 1),
                     "high_score": high,
                     "best_generation": self.session_stats.get('best_generation', 0),
+                    "total_deaths": self.session_stats.get('total_deaths', 0) + self.gs.death_count,
                 },
                 "current_state": {
                     "location": self.gs.current_room_name,
