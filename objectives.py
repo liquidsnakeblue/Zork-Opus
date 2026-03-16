@@ -179,6 +179,23 @@ class ObjectiveManager:
             metrics = self.map_manager.get_quality_metrics()
             parts.append(f"\nMap: {metrics.get('room_count', 0)} rooms, {metrics.get('connection_count', 0)} connections")
 
+        # Knowledgebase (strategic analysis from gameplay)
+        if self.knowledge:
+            try:
+                kb_path = self.knowledge.output_file
+                from pathlib import Path
+                kb_text = Path(kb_path).read_text().strip()
+                if kb_text:
+                    parts.append(f"\nKNOWLEDGEBASE (learned from gameplay):\n{kb_text[:3000]}")
+            except (FileNotFoundError, AttributeError):
+                pass
+
+        # Key puzzle memories (PUZZLE and DISCOVERY, non-superseded)
+        if self.memory:
+            puzzle_mems = self.memory.get_puzzle_summary(max_entries=30)
+            if puzzle_mems:
+                parts.append(f"\nKEY PUZZLE KNOWLEDGE:\n{puzzle_mems}")
+
         # Walkthrough
         if self.walkthrough:
             wt = self.walkthrough.get_content()

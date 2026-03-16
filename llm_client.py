@@ -299,8 +299,15 @@ class LLMClient:
 
 # ── JSON extraction utilities ──
 
+def _strip_control_chars(s: str) -> str:
+    """Remove control characters that break JSON parsing, preserving \\n \\r \\t."""
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', s)
+
+
 def extract_json(content: str) -> str:
     """Extract JSON from text that may contain reasoning, markdown fences, or format tokens."""
+    # Strip thinking blocks (Qwen 3.5 etc.)
+    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     # Strip model format tokens (GPT-OSS etc.)
     content = re.sub(r'<\|[^|]+\|>[^<{]*', '', content).strip()
 
@@ -337,8 +344,15 @@ def extract_json(content: str) -> str:
                     json.loads(collapsed)
                     return collapsed
                 except json.JSONDecodeError:
+                    # Try stripping control characters
+                    cleaned = _strip_control_chars(candidate)
+                    try:
+                        json.loads(cleaned)
+                        return cleaned
+                    except json.JSONDecodeError:
+                        pass
                     # Try repairing unescaped quotes
-                    repaired = _repair_json_quotes(candidate)
+                    repaired = _repair_json_quotes(cleaned)
                     try:
                         json.loads(repaired)
                         return repaired

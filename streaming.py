@@ -45,6 +45,8 @@ class StreamServer:
             try:
                 async for _ in ws:
                     pass
+            except websockets.exceptions.ConnectionClosedError:
+                pass
             finally:
                 self._clients.discard(ws)
 

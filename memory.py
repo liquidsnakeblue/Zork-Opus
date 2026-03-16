@@ -590,6 +590,20 @@ class MemoryManager:
                 lines.append(f"  [{m.category}] {m.title}: {m.text}")
         return "\n".join(lines)
 
+    def get_puzzle_summary(self, max_entries: int = 30) -> str:
+        """Get a summary of key PUZZLE and DISCOVERY memories across all locations for the reasoner."""
+        entries = []
+        for loc_id, memories in self.cache.persistent.items():
+            for m in memories:
+                if m.status != MemoryStatus.ACTIVE:
+                    continue
+                if m.category not in ("PUZZLE", "DISCOVERY"):
+                    continue
+                entries.append(f"- [{m.category}] {m.title} (L{loc_id}): {m.text}")
+                if len(entries) >= max_entries:
+                    return "\n".join(entries)
+        return "\n".join(entries) if entries else ""
+
     def record_action_outcome(self, location_id: int, location_name: str,
                               action: str, response: str, z_context: Dict) -> None:
         """Main entry: synthesize memory after each action."""
