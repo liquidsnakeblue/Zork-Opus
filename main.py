@@ -35,6 +35,8 @@ PRESETS = {
           "url": "https://openrouter.ai/api/v1", "model": "deepseek/deepseek-r1-0528"},
     "6": {"name": "Gemini 3 Flash (OpenRouter)",
           "url": "https://openrouter.ai/api/v1", "model": "google/gemini-3-flash-preview"},
+    "7": {"name": "Gemini 2.5 Flash (OpenRouter)",
+          "url": "https://openrouter.ai/api/v1", "model": "google/gemini-2.5-flash"},
 }
 
 GAME_FILES = [
