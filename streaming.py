@@ -89,7 +89,7 @@ class StreamServer:
         })
 
     def broadcast_memory_synthesis_start(self, turn: int, location_name: str, action: str):
-        self.broadcast("memory_synthesis_start", {"turn": turn, "location": location_name, "action": action})
+        self.broadcast("memory_synthesis_start", {"turn": turn, "location_name": location_name, "action": action})
 
     def broadcast_memory_synthesis_chunk(self, turn: int, content: str):
         self.broadcast("memory_synthesis_chunk", {"turn": turn, "content": content})
@@ -97,8 +97,8 @@ class StreamServer:
     def broadcast_memory_synthesis_complete(self, turn: int, content: str, memory_created: bool,
                                             memory_title: str = None, memory_category: str = None):
         self.broadcast("memory_synthesis_complete", {
-            "turn": turn, "content": content, "created": memory_created,
-            "title": memory_title, "category": memory_category,
+            "turn": turn, "content": content, "memory_created": memory_created,
+            "memory_title": memory_title, "memory_category": memory_category,
         })
 
     def broadcast_web_search_start(self, turn: int, query: str):
@@ -119,4 +119,34 @@ class StreamServer:
         self.broadcast("objective_followup", {
             "turn": turn, "reasoning": reasoning, "action": action,
             "objective_id": objective_id, "objective_text": objective_text,
+        })
+
+    # Reasoner broadcasts
+    def broadcast_reasoner_start(self, turn: int, trigger_reason: str):
+        self.broadcast("reasoner_start", {"turn": turn, "trigger_reason": trigger_reason})
+
+    def broadcast_reasoner_chunk(self, turn: int, reasoning: str):
+        self.broadcast("reasoner_chunk", {"turn": turn, "reasoning": reasoning})
+
+    def broadcast_reasoner_complete(self, turn: int, reasoning: str, suggested_approach: str = None,
+                                     objectives: list = None, abandoned: list = None):
+        self.broadcast("reasoner_complete", {
+            "turn": turn, "reasoning": reasoning,
+            "suggested_approach": suggested_approach,
+            "objectives": objectives or [], "abandoned": abandoned or [],
+        })
+
+    # Objective review broadcasts
+    def broadcast_objective_review_start(self, turn: int, objective_count: int):
+        self.broadcast("objective_review_start", {"turn": turn, "objective_count": objective_count})
+
+    def broadcast_objective_review_chunk(self, turn: int, content: str):
+        self.broadcast("objective_review_chunk", {"turn": turn, "content": content})
+
+    def broadcast_objective_review_complete(self, turn: int, content: str,
+                                             completed_objectives: list = None, updates: list = None):
+        self.broadcast("objective_review_complete", {
+            "turn": turn, "content": content,
+            "completed_objectives": completed_objectives or [],
+            "updates": updates or [],
         })

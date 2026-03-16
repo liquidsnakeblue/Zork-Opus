@@ -810,13 +810,28 @@ State: Score {z_ctx.get('score_delta', 0):+d} | Location changed: {z_ctx.get('lo
 
 Optional fields: `goal`, `invalidate_memory_titles`, `invalidation_reason`"""
 
-            resp = self.llm_client.chat.completions.create(
-                model=self.config.memory_model, messages=[{"role": "user", "content": prompt}],
-                temperature=self.config.memory_sampling.get('temperature', 0.3),
-                max_tokens=self.config.memory_sampling.get('max_tokens', 4000),
-                name="MemorySynthesis",
-                enable_thinking=self.config.memory_sampling.get('enable_thinking'),
-            )
+            # Streaming: broadcast chunks to viewer in real-time
+            if self.streaming_server:
+                self.streaming_server.broadcast_memory_synthesis_start(
+                    current_turn, loc_name, action)
+                def on_memory_chunk(accumulated):
+                    self.streaming_server.broadcast_memory_synthesis_chunk(current_turn, accumulated)
+                resp = self.llm_client.chat.completions.create_streaming(
+                    model=self.config.memory_model, messages=[{"role": "user", "content": prompt}],
+                    temperature=self.config.memory_sampling.get('temperature', 0.3),
+                    max_tokens=self.config.memory_sampling.get('max_tokens', 4000),
+                    name="MemorySynthesis",
+                    enable_thinking=self.config.memory_sampling.get('enable_thinking'),
+                    on_chunk=on_memory_chunk,
+                )
+            else:
+                resp = self.llm_client.chat.completions.create(
+                    model=self.config.memory_model, messages=[{"role": "user", "content": prompt}],
+                    temperature=self.config.memory_sampling.get('temperature', 0.3),
+                    max_tokens=self.config.memory_sampling.get('max_tokens', 4000),
+                    name="MemorySynthesis",
+                    enable_thinking=self.config.memory_sampling.get('enable_thinking'),
+                )
 
             content = resp.content
             if not content and resp.reasoning_content:
@@ -846,6 +861,13 @@ Optional fields: `goal`, `invalidate_memory_titles`, `invalidation_reason`"""
                 "memory_title": parsed.memory_title,
                 "memory_category": parsed.category,
             }
+
+            # Broadcast completion to viewer
+            if self.streaming_server:
+                self.streaming_server.broadcast_memory_synthesis_complete(
+                    current_turn, parsed.reasoning, parsed.should_remember,
+                    parsed.memory_title, parsed.category,
+                )
 
             if not parsed.should_remember:
                 return parsed  # Still return for supersession/invalidation processing

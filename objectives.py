@@ -245,6 +245,12 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
 }}
 ```"""
 
+        # Determine trigger reason (needed before broadcast)
+        if self.gs.turn_count == 0:
+            trigger = "Episode start"
+        else:
+            trigger = f"Periodic review (every {self.config.objective_update_interval} turns)"
+
         try:
             rs = self.config.reasoner_sampling
             # Use agent model as fallback after 3 consecutive reasoner failures
@@ -254,14 +260,30 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
                 model = self.config.agent_model
                 if self.logger:
                     self.logger.info(f"Reasoner using fallback model: {model}")
-            resp = self.reasoner_client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=rs.get("temperature", 0.7),
-                max_tokens=rs.get("max_tokens", 16000),
-                enable_thinking=rs.get("enable_thinking"),
-                name="ObjectiveReasoner",
-            )
+
+            # Streaming: broadcast chunks to viewer in real-time
+            if self.streaming:
+                self.streaming.broadcast_reasoner_start(self.gs.turn_count, trigger)
+                def on_reasoner_chunk(accumulated):
+                    self.streaming.broadcast_reasoner_chunk(self.gs.turn_count, accumulated)
+                resp = self.reasoner_client.chat.completions.create_streaming(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=rs.get("temperature", 0.7),
+                    max_tokens=rs.get("max_tokens", 16000),
+                    enable_thinking=rs.get("enable_thinking"),
+                    name="ObjectiveReasoner",
+                    on_chunk=on_reasoner_chunk,
+                )
+            else:
+                resp = self.reasoner_client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=rs.get("temperature", 0.7),
+                    max_tokens=rs.get("max_tokens", 16000),
+                    enable_thinking=rs.get("enable_thinking"),
+                    name="ObjectiveReasoner",
+                )
 
             content = resp.content or ""
             if not content and resp.reasoning_content:
@@ -287,13 +309,16 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
                         })
                         break
 
-            # Determine trigger reason
-            if self.gs.turn_count == 0:
-                trigger = "Episode start"
-            elif result.abandon_objective_ids:
+            # Update trigger reason if objectives were abandoned
+            if result.abandon_objective_ids:
                 trigger = f"Periodic review (abandoned {len(result.abandon_objective_ids)})"
-            else:
-                trigger = f"Periodic review (every {self.config.objective_update_interval} turns)"
+
+            # Broadcast completion to viewer
+            if self.streaming:
+                self.streaming.broadcast_reasoner_complete(
+                    self.gs.turn_count, result.reasoning, result.suggested_approach,
+                    new_obj_data, result.abandon_objective_ids,
+                )
 
             self.gs.reasoner_events.append({
                 "turn": self.gs.turn_count,
@@ -443,14 +468,29 @@ Return JSON with "reasoning" FIRST (think before deciding):
 If no changes: {{"reasoning": "No conditions met", "updates": []}}"""
 
         try:
-            resp = self.review_client.chat.completions.create(
-                model=self.config.agent_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.config.turn_review_sampling.get("temperature", 0.1),
-                max_tokens=self.config.turn_review_sampling.get("max_tokens", 2000),
-                enable_thinking=self.config.turn_review_sampling.get("enable_thinking"),
-                name="ObjectiveReview",
-            )
+            # Streaming: broadcast chunks to viewer in real-time
+            if self.streaming:
+                self.streaming.broadcast_objective_review_start(self.gs.turn_count, len(active))
+                def on_review_chunk(accumulated):
+                    self.streaming.broadcast_objective_review_chunk(self.gs.turn_count, accumulated)
+                resp = self.review_client.chat.completions.create_streaming(
+                    model=self.config.agent_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.config.turn_review_sampling.get("temperature", 0.1),
+                    max_tokens=self.config.turn_review_sampling.get("max_tokens", 2000),
+                    enable_thinking=self.config.turn_review_sampling.get("enable_thinking"),
+                    name="ObjectiveReview",
+                    on_chunk=on_review_chunk,
+                )
+            else:
+                resp = self.review_client.chat.completions.create(
+                    model=self.config.agent_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.config.turn_review_sampling.get("temperature", 0.1),
+                    max_tokens=self.config.turn_review_sampling.get("max_tokens", 2000),
+                    enable_thinking=self.config.turn_review_sampling.get("enable_thinking"),
+                    name="ObjectiveReview",
+                )
 
             content = resp.content or ""
             if not content and resp.reasoning_content:
@@ -494,11 +534,20 @@ If no changes: {{"reasoning": "No conditions met", "updates": []}}"""
                 status = "completed" if update.completed else "updated"
                 review_lines.append(f"[{update.objective_id}] {status}: {update.reason}")
 
+            review_content = "\n".join(review_lines) if review_lines else "No objective changes."
+            update_dicts = [u.model_dump() for u in result.updates]
+
             self.gs.objective_review_results[self.gs.turn_count] = {
-                "content": "\n".join(review_lines) if review_lines else "No objective changes.",
+                "content": review_content,
                 "completed_objectives": completed_objs,
-                "updates": [u.model_dump() for u in result.updates],
+                "updates": update_dicts,
             }
+
+            # Broadcast completion to viewer
+            if self.streaming:
+                self.streaming.broadcast_objective_review_complete(
+                    self.gs.turn_count, review_content, completed_objs, update_dicts,
+                )
 
             return completed_ids
 
