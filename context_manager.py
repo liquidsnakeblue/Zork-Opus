@@ -186,13 +186,14 @@ class ContextManager:
                     f"objective with `Objective: <id>` to leave this area entirely.")
                 parts.append("")
 
-        # Treasure deposit reminder — nudge agent to return treasures periodically
+        # Treasure deposit reminder
         # Known Zork I treasure keywords (from the game's own scoring table)
         _TREASURE_KEYWORDS = [
             "jewel", "egg", "canary", "bauble", "gold", "coin", "diamond",
             "emerald", "jade", "sapphire", "ruby", "crystal", "trunk",
             "trident", "chalice", "torch", "painting", "pot of gold",
             "figurine", "bracelet", "scarab", "platinum", "ivory",
+            "coffin", "sceptre",
         ]
         if gs.current_inventory and gs.turn_count > 5:
             carried_treasures = [
@@ -200,14 +201,23 @@ class ContextManager:
                 if any(kw in item.lower() for kw in _TREASURE_KEYWORDS)
             ]
             if carried_treasures:
-                turns_since_score = gs.turn_count - gs.last_scoring_turn
-                if turns_since_score >= 10:
+                # IMMEDIATE: agent is in the Living Room with treasures
+                if gs.current_room_id == 193:
                     parts.append(
-                        f"💎 TREASURE REMINDER: You are carrying potential treasures: "
-                        f"{', '.join(carried_treasures)}. Consider returning to the Living Room "
-                        f"and depositing them in the trophy case to score points. "
-                        f"You haven't scored in {turns_since_score} turns!")
+                        f"🏆 YOU ARE IN THE LIVING ROOM WITH TREASURES! "
+                        f"DEPOSIT NOW: {', '.join(carried_treasures)}. "
+                        f"Use 'open trophy case' then 'put <item> in case' for EACH treasure. "
+                        f"Do this BEFORE leaving the room!")
                     parts.append("")
+                else:
+                    turns_since_score = gs.turn_count - gs.last_scoring_turn
+                    if turns_since_score >= 10:
+                        parts.append(
+                            f"💎 TREASURE REMINDER: You are carrying potential treasures: "
+                            f"{', '.join(carried_treasures)}. Consider returning to the Living Room "
+                            f"and depositing them in the trophy case to score points. "
+                            f"You haven't scored in {turns_since_score} turns!")
+                        parts.append("")
 
         # Navigation failure message
         if gs.navigation_failure_msg:
