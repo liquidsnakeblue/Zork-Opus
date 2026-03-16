@@ -723,8 +723,16 @@ class Orchestrator:
         if stuck < self.config.stuck_warning_threshold: return ""
         remaining = self.config.max_turns_stuck - stuck
         urgency = "🚨 CRITICAL" if remaining <= 5 else "⚠️ WARNING" if remaining <= 10 else "⚠️ STAGNATION"
+        advice = ""
+        if remaining <= 15:
+            advice = ("\nSTRATEGY TO SCORE:\n"
+                     "• If carrying treasures: find ANY route to Living Room trophy case\n"
+                     "• Explore exits you haven't tried — look for chimneys, gates, passages\n"
+                     "• Try 'up' or 'climb' in unusual locations\n"
+                     "• Switch to a completely different area of the map\n"
+                     "• Select a different objective with Objective: <id>\n")
         return (f"{'='*60}\n{urgency}\nNo progress for {stuck} turns. "
-                f"DIE in {remaining} turns without score increase.\n{'='*60}")
+                f"EPISODE ENDS in {remaining} turns without score increase.{advice}\n{'='*60}")
 
     # ── State export ──
 

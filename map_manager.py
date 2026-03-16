@@ -134,8 +134,9 @@ class MapManager:
     def track_failed_action(self, action: str, location_id: int, location_name: str):
         self.game_state.failed_actions_by_location.setdefault(location_name, []).append(action)
         count = self.game_map.track_exit_failure(location_id, action)
-        if count >= 3:
-            self.game_map.prune_invalid_exits(location_id, min_failures=3)
+        threshold = self.config.exit_failure_threshold
+        if count >= threshold:
+            self.game_map.prune_invalid_exits(location_id, min_failures=threshold)
 
     def save_map(self) -> bool:
         path = str(Path(self.config.game_workdir) / self.config.map_state_file)
