@@ -3265,7 +3265,7 @@
 
         function _handleReasoningChunk(msg) {
             if (msg.turn !== AppState.streaming.currentTurn) return;
-            AppState.streaming.reasoning = msg.content;
+            AppState.streaming.reasoning = msg.reasoning || msg.content || '';
             const streamId = `reasoning-${msg.turn}`;
             const pendingCard = document.querySelector(`.card[data-turn="${msg.turn}"][data-status="pending_ai"]`);
             if (!pendingCard) return;
