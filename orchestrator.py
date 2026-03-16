@@ -434,6 +434,7 @@ class Orchestrator:
         self.gs.last_items_lost = sorted(inv_names_before - inv_names_after)
         if score_delta > 0:
             self.gs.last_scoring_turn = self.gs.turn_count
+        self.gs.update_item_locations()
         # first_visit: check memory cache (cross-episode), not visited_locations (episode-scoped)
         first_visit = loc_id_after not in self.memory.cache.persistent
 

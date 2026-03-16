@@ -105,6 +105,12 @@ class ContextManager:
             parts.append(f"Game response:\n{game_text}")
             parts.append("")
 
+        # Item location tracking
+        item_summary = gs.get_item_location_summary()
+        if item_summary:
+            parts.append(f"=== ITEM TRACKER ===\n{item_summary}")
+            parts.append("")
+
         # Location memories
         if self.memory_manager:
             mem_text = self.memory_manager.get_location_memory(gs.current_room_id)

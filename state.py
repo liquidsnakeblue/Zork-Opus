@@ -110,6 +110,10 @@ class GameState:
     pending_location_name: Optional[str] = None
     pending_timestamp: Optional[str] = None
 
+    # Item location tracking: item_name -> (location_type, location_id, location_name, turn)
+    # location_type: "inventory", "room", "unknown"
+    item_locations: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
     # Session-persistent
     death_count: int = 0
     death_counted_this_episode: bool = False
@@ -163,6 +167,77 @@ class GameState:
         self.pending_location_name = None
         self.pending_timestamp = None
         self.death_counted_this_episode = False
+        self.item_locations.clear()
+
+    # ── Item tracking ──
+
+    def update_item_locations(self):
+        """Update item locations based on inventory changes this turn.
+        Call AFTER updating current_inventory, last_items_gained, last_items_lost."""
+        turn = self.turn_count
+        room_id = self.current_room_id
+        room_name = self.current_room_name
+
+        # Items picked up → now in inventory
+        for item in self.last_items_gained:
+            self.item_locations[item] = {
+                "where": "inventory", "turn": turn,
+            }
+
+        # Items lost → dropped at current room OR stolen (unknown)
+        for item in self.last_items_lost:
+            # If the agent explicitly dropped it, it's at the current room.
+            # If the thief stole it, we don't know where it is.
+            # Heuristic: check if last action was a drop/put command
+            last_action = ""
+            if self.action_history:
+                last_action = self.action_history[-1].action.lower()
+            if any(kw in last_action for kw in ["drop", "put", "throw", "give"]):
+                self.item_locations[item] = {
+                    "where": "room", "room_id": room_id,
+                    "room_name": room_name, "turn": turn,
+                }
+            else:
+                # Likely stolen or lost — mark unknown
+                self.item_locations[item] = {
+                    "where": "unknown", "turn": turn,
+                }
+
+        # Sync full inventory — anything in inventory is definitively there
+        for item in self.current_inventory:
+            if item not in self.item_locations or self.item_locations[item]["where"] != "inventory":
+                self.item_locations[item] = {"where": "inventory", "turn": turn}
+
+    def get_items_at_location(self, location_id: int) -> List[str]:
+        """Get items known to be at a specific location."""
+        return [
+            name for name, loc in self.item_locations.items()
+            if loc.get("where") == "room" and loc.get("room_id") == location_id
+        ]
+
+    def get_item_location_summary(self) -> str:
+        """Get a summary of all tracked item locations for context."""
+        inv_items = []
+        room_items: Dict[str, List[str]] = {}
+        unknown_items = []
+
+        for name, loc in self.item_locations.items():
+            if loc["where"] == "inventory":
+                continue  # Already shown in inventory line
+            elif loc["where"] == "room":
+                rname = loc.get("room_name", f"L{loc.get('room_id', '?')}")
+                room_items.setdefault(rname, []).append(name)
+            elif loc["where"] == "unknown":
+                unknown_items.append(name)
+
+        lines = []
+        if room_items:
+            lines.append("Known item locations:")
+            for rname, items in sorted(room_items.items()):
+                lines.append(f"  {rname}: {', '.join(items)}")
+        if unknown_items:
+            lines.append(f"  Lost/stolen: {', '.join(unknown_items)}")
+        return "\n".join(lines)
 
     # ── Objective helpers ──
 
