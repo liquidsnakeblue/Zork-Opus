@@ -112,9 +112,47 @@ class ObjectiveManager:
         # Score stagnation awareness
         turns_since_score = self.gs.turn_count - self.gs.last_scoring_turn
         if turns_since_score > 15:
+            # Check if agent is trapped (can't reach scoring location)
+            trapped_msg = ""
+            if self.map_manager:
+                gm = self.map_manager.game_map
+                current = self.gs.current_room_id
+                # Try to find path to any room in the "house" area (typical scoring rooms)
+                scoring_rooms = [rid for rid, name in gm.room_names.items()
+                                if any(kw in name.lower() for kw in ["living room", "kitchen", "attic"])]
+                can_reach_scoring = False
+                for sr in scoring_rooms:
+                    if gm.find_path_bfs(current, sr) is not None:
+                        can_reach_scoring = True
+                        break
+                if scoring_rooms and not can_reach_scoring:
+                    trapped_msg = (
+                        "\n🚨 TRAPPED: Agent cannot reach the Living Room (trophy case) from current location! "
+                        "The trap door is likely one-way. Create objectives to find ALTERNATE ROUTES "
+                        "to the surface: look for chimneys, gratings, passages up, or unexplored exits "
+                        "that might connect to the house area. This is the TOP PRIORITY.")
+
             parts.append(f"\n⚠️ SCORE STAGNATION: No score increase in {turns_since_score} turns. "
                         f"Current strategy is not working. Prioritize EXPLORATION objectives "
-                        f"to discover new areas and items.")
+                        f"to discover new areas and items.{trapped_msg}")
+
+        # Unreachable rooms (from failed pathfinder targets)
+        from pathfinder import Pathfinder
+        pf = None
+        # Find pathfinder from context_manager injection
+        if self.context and hasattr(self.context, 'pathfinder') and self.context.pathfinder:
+            pf = self.context.pathfinder
+        if pf and pf._failed_targets:
+            failed_names = []
+            for tid, fail_turn in pf._failed_targets.items():
+                rname = self.map_manager.game_map.room_names.get(tid, f"Room#{tid}") if self.map_manager else f"L{tid}"
+                failed_names.append(f"{rname} (L{tid}, failed T{fail_turn})")
+            if failed_names:
+                parts.append(f"\n🚫 UNREACHABLE ROOMS (no path from current location):")
+                for fn in failed_names:
+                    parts.append(f"  • {fn}")
+                parts.append("The agent CANNOT reach these rooms via known connections. "
+                            "Create objectives to explore NEW exits and discover alternate routes.")
 
         # Current objectives
         active = self.gs.active_objectives
