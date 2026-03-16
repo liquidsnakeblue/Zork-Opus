@@ -131,8 +131,8 @@ enable_objective_refinement = false
 # Loop Break / Anti-Stuck
 # ══════════════════════════════════════════════════════════════
 [tool.zorkopus.loop_break]
-max_turns_stuck = 40
-stuck_check_interval = 5
+max_turns_stuck = 500
+stuck_check_interval = 50
 enable_objective_based_progress = false
 enable_location_penalty = true
 location_revisit_penalty = -0.2
