@@ -57,8 +57,8 @@ class SynthesisResponse(BaseModel):
     memory_text: Optional[str] = None
     persistence: Optional[str] = None
     status: MemoryStatusType = Field(default=MemoryStatus.ACTIVE)
-    supersedes_memory_titles: Set[str] = Field(default_factory=set, max_length=3)
-    invalidate_memory_titles: Set[str] = Field(default_factory=set, max_length=3)
+    supersedes_memory_titles: Set[str] = Field(default_factory=set, max_length=10)
+    invalidate_memory_titles: Set[str] = Field(default_factory=set, max_length=10)
     invalidation_reason: Optional[str] = None
     goal: Optional[str] = None
 
