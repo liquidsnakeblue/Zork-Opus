@@ -590,18 +590,40 @@ class MemoryManager:
                 lines.append(f"  [{m.category}] {m.title}: {m.text}")
         return "\n".join(lines)
 
-    def get_puzzle_summary(self, max_entries: int = 30) -> str:
-        """Get a summary of key PUZZLE and DISCOVERY memories across all locations for the reasoner."""
-        entries = []
+    def get_puzzle_summary(self, max_entries: int = 40) -> str:
+        """Get a summary of key PUZZLE and DISCOVERY memories for the reasoner, prioritized by importance."""
+        all_mems = []
         for loc_id, memories in self.cache.persistent.items():
             for m in memories:
                 if m.status != MemoryStatus.ACTIVE:
                     continue
-                if m.category not in ("PUZZLE", "DISCOVERY"):
+                if m.category not in ("PUZZLE", "DISCOVERY", "SUCCESS", "FAILURE"):
                     continue
-                entries.append(f"- [{m.category}] {m.title} (L{loc_id}): {m.text}")
-                if len(entries) >= max_entries:
-                    return "\n".join(entries)
+                # Score by importance
+                score = 0
+                if m.category == "PUZZLE":
+                    score += 3
+                elif m.category == "SUCCESS":
+                    score += 2
+                elif m.category == "FAILURE":
+                    score += 1
+                text_lower = (m.title + " " + m.text).lower()
+                # Boost memories about key game mechanics
+                if any(kw in text_lower for kw in ["score", "treasure", "trophy", "ritual", "exorcism",
+                                                     "match", "candle", "bell", "book", "prayer",
+                                                     "egg", "painting", "torch", "jewel", "coffin",
+                                                     "dam", "rainbow", "pot of gold", "scarab",
+                                                     "chalice", "trident", "bauble", "diamond"]):
+                    score += 3
+                if m.persistence == "core":
+                    score += 1
+                all_mems.append((score, loc_id, m))
+
+        # Sort by importance (highest first)
+        all_mems.sort(key=lambda x: -x[0])
+        entries = []
+        for _score, loc_id, m in all_mems[:max_entries]:
+            entries.append(f"- [{m.category}] {m.title} (L{loc_id}): {m.text}")
         return "\n".join(entries) if entries else ""
 
     def record_action_outcome(self, location_id: int, location_name: str,
