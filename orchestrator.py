@@ -619,7 +619,16 @@ class Orchestrator:
             if not search_m and not crawl_m:
                 return current_action, current_reasoning
             if not self.web_search:
-                return current_action, current_reasoning
+                # Web search is disabled — tell the agent and get a new action
+                no_search_ctx = ("\n=== WEB SEARCH UNAVAILABLE ===\n"
+                                "Web search is disabled. You must solve puzzles using "
+                                "observation, experimentation, and your memory. "
+                                "Try a different approach or select a different objective.\n")
+                accumulated += no_search_ctx
+                result = self.agent.get_action("", accumulated)
+                current_action = result["action"]
+                current_reasoning = result.get("reasoning", "")
+                continue  # Check if the new action is also a search
 
             if search_m:
                 query = search_m.group(1).strip()
