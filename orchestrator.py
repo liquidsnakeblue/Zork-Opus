@@ -126,10 +126,22 @@ class Orchestrator:
         self.knowledge = KnowledgeManager(
             self.config, self.agent, self.map_mgr, self.llm, self.logger)
 
+        # Reasoner client (separate if different base URL from agent)
+        reasoner_url = self.config.base_url_for("reasoner")
+        agent_url = self.config.base_url_for("agent")
+        if reasoner_url != agent_url or self.config.reasoner_model != self.config.agent_model:
+            self.reasoner_llm = LLMClient(
+                config=self.config, base_url=reasoner_url,
+                api_key=self.config.api_key_for("reasoner"),
+                logger=self.logger, prompt_logger=self.prompt_logger,
+            )
+        else:
+            self.reasoner_llm = self.llm
+
         # Objectives
         self.objectives = ObjectiveManager(
             self.config, self.gs, self.knowledge, self.map_mgr, self.memory,
-            self.ctx, self.walkthrough, self.llm, self.llm,
+            self.ctx, self.walkthrough, self.reasoner_llm, self.llm,
             self.web_search, self.streaming, self.logger,
         )
 
