@@ -127,8 +127,8 @@ class LLMClient:
 
         # Thinking/reasoning support
         enable_thinking = kwargs.get("enable_thinking")
-        if enable_thinking:
-            body.setdefault("chat_template_kwargs", {})["enable_thinking"] = True
+        if enable_thinking is not None:
+            body.setdefault("chat_template_kwargs", {})["enable_thinking"] = bool(enable_thinking)
 
         # Default max_tokens for reasoning models
         if self._is_reasoning_model(model) and "max_tokens" not in body:
