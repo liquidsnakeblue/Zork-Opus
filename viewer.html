@@ -406,9 +406,9 @@
         }
 
         .obj-chip.completed {
-            opacity: 0.6;
             border-color: var(--accent-green);
             color: var(--text-muted);
+            transition: opacity var(--duration-slow) ease;
         }
         .obj-chip.completed .obj-chip-dot {
             background: transparent;
@@ -419,8 +419,15 @@
         }
         .obj-chip.completed .obj-chip-dot::before { content: '✓'; }
 
-        .obj-chip.completed.fading-1 { opacity: 0.35; transition: opacity var(--duration-slow) ease; }
-        .obj-chip.completed.fading-2 { opacity: 0.15; transition: opacity var(--duration-slow) ease; }
+        /* Gradual fade: turns 0-7 after completion */
+        .obj-chip.completed.fade-0 { opacity: 0.7; }
+        .obj-chip.completed.fade-1 { opacity: 0.6; }
+        .obj-chip.completed.fade-2 { opacity: 0.5; }
+        .obj-chip.completed.fade-3 { opacity: 0.4; }
+        .obj-chip.completed.fade-4 { opacity: 0.3; }
+        .obj-chip.completed.fade-5 { opacity: 0.2; }
+        .obj-chip.completed.fade-6 { opacity: 0.12; }
+        .obj-chip.completed.fade-7 { opacity: 0.06; }
 
         .objectives-empty-chip {
             font-size: var(--text-sm);
@@ -2673,9 +2680,8 @@
             container.innerHTML = display.map(obj => {
                 let fadeClass = '';
                 if (obj.status === 'completed') {
-                    const since = currentTurn - (obj.completed_turn || 0);
-                    if (since === 6) fadeClass = 'fading-1';
-                    else if (since === 7) fadeClass = 'fading-2';
+                    const since = Math.min(currentTurn - (obj.completed_turn || 0), 7);
+                    fadeClass = `fade-${since}`;
                 }
                 const tip = (obj.text || '') + (obj.completion_condition ? `\n✓ Complete when: ${obj.completion_condition}` : '');
                 return `<div class="obj-chip ${obj.status} ${fadeClass}" data-id="${obj.id}" title="${Utils.escapeHtml(tip)}"><span class="obj-chip-dot"></span><span class="obj-chip-name">${Utils.escapeHtml(obj.name || obj.id)}</span></div>`;
