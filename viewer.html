@@ -672,17 +672,7 @@
         }
 
         .thinking.streaming .thinking-content::before {
-            content: '';
-            position: sticky;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2em;
-            background: linear-gradient(var(--bg-tertiary), transparent);
-            pointer-events: none;
-            display: block;
-            margin-bottom: -2em;
-            z-index: 1;
+            display: none;
         }
 
         /* Streaming cursor */
@@ -709,7 +699,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 2em;
+            height: 1em;
             background: linear-gradient(transparent, var(--bg-tertiary));
             pointer-events: none;
             opacity: 0;
@@ -2772,15 +2762,18 @@
                 return _buildCardHtml(entry, isRoomChange, roomName, imagePath, hasImage, isNewestCard);
             }).join('');
 
+            // Only auto-scroll to top if user is already near the top (viewing latest turns)
+            const wasNearTop = container.scrollTop < 300;
+
             // Apply to DOM
             if (isNewTurn && container.children.length > 0) {
                 setTimeout(() => {
                     container.innerHTML = cardsHtml;
                     _restorePreserved(container, preservedSections, preservedReasonerCards);
                     _insertReasonerCards(container);
-                    container.scrollTop = 0;
+                    if (wasNearTop) container.scrollTop = 0;
                     const newCard = container.querySelector('.card');
-                    if (newCard) {
+                    if (newCard && wasNearTop) {
                         newCard.classList.add('entering');
                         setTimeout(() => newCard.classList.remove('entering'), 2100);
                     }
@@ -3497,7 +3490,7 @@
             const newCard = timeline.querySelector(`.reasoner-card[data-reasoner-turn="${msg.turn}"]`);
             if (newCard) {
                 StreamingLifecycle.create(newCard.querySelector('.card-content'), { streamId: `reasoner-${msg.turn}`, theme: 'purple', title: 'Strategic Analysis', initialText: 'Analyzing game state...' });
-                newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                if (timeline.scrollTop < 300) newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
 
@@ -3541,7 +3534,8 @@
                 const thinkingSection = cc.querySelector(`[data-stream-id="reasoner-${msg.turn}"]`);
                 if (thinkingSection) thinkingSection.insertAdjacentHTML('beforebegin', html);
                 else cc.insertAdjacentHTML('beforeend', html);
-                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                const tl = document.getElementById('timeline');
+                if (tl && tl.scrollTop < 300) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } else if (msg.status === 'completed') {
                 // Find the most recent started tool call and mark it complete
                 const pendingTools = cc.querySelectorAll('.reasoner-tool-call .streaming-dots');
