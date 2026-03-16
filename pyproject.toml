@@ -49,7 +49,7 @@ initial_delay = 1.0
 max_delay = 30.0
 exponential_base = 2.0
 jitter_factor = 0.1
-timeout_seconds = 1800.0
+timeout_seconds = 120.0
 circuit_breaker_failure_threshold = 10
 circuit_breaker_recovery_timeout = 300.0
 
