@@ -87,6 +87,7 @@ class ObjectiveManager:
         )
         self.review_client = review_client or self.reasoner_client
         self._reasoner_fail_turn = -999  # Cooldown after failures
+        self._reasoner_consecutive_failures = 0
 
     def should_run_reasoner(self) -> bool:
         """Check if it's time for the reasoner to update objectives."""
@@ -208,8 +209,15 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
 
         try:
             rs = self.config.reasoner_sampling
+            # Use agent model as fallback after 3 consecutive reasoner failures
+            model = self.config.reasoner_model
+            if (self._reasoner_consecutive_failures >= 3
+                    and self.config.agent_model != self.config.reasoner_model):
+                model = self.config.agent_model
+                if self.logger:
+                    self.logger.info(f"Reasoner using fallback model: {model}")
             resp = self.reasoner_client.chat.completions.create(
-                model=self.config.reasoner_model,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=rs.get("temperature", 0.7),
                 max_tokens=rs.get("max_tokens", 16000),
@@ -224,6 +232,7 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
             result = ReasonerResponse.model_validate_json(extract_json(content))
 
             # Apply results
+            self._reasoner_consecutive_failures = 0  # Reset on success
             self._apply_reasoner_result(result)
             self.gs.objective_update_turn = self.gs.turn_count
 
@@ -262,6 +271,7 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
         except Exception as e:
             if self.logger: self.logger.error(f"Reasoner failed: {e}")
             self._reasoner_fail_turn = self.gs.turn_count
+            self._reasoner_consecutive_failures += 1
             # Fallback: create basic objectives if none exist
             if not self.gs.active_objectives:
                 self._create_fallback_objectives()
