@@ -564,20 +564,58 @@
             border-radius: var(--radius-sm);
         }
 
-        .room-change {
+        .room-name {
             font-size: var(--text-md);
             font-weight: 600;
             color: var(--accent-copper);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-right: 8px;
         }
 
-        .room-change svg {
-            width: 14px;
-            height: 14px;
-            transform: scaleX(-1);
+        /* Transition header: Previous → action → Current */
+        .card-transition {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .transition-from {
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 160px;
+        }
+
+        .transition-action {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: rgba(107, 159, 196, 0.12);
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .transition-arrow {
+            color: var(--text-dim);
+            font-size: var(--text-sm);
+            flex-shrink: 0;
+        }
+
+        .transition-to {
+            font-size: var(--text-md);
+            font-weight: 600;
+            color: var(--accent-copper);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Card with Room Change */
@@ -2658,17 +2696,40 @@
             return `${entry.turn}|${entry.status || 'complete'}|${entry.action || ''}|${entry.memory_synthesis ? 1 : 0}|${entry.objective_review ? 1 : 0}`;
         }
 
-        function _buildCardHtml(entry, isRoomChange, roomName, imagePath, hasImage, isNewestCard) {
+        function _buildCardHtml(entry, isNewestCard) {
             const isPending = entry.status === 'pending_ai';
+            const moved = entry.moved || false;
+            const roomName = entry.location_name || 'Unknown';
+            const roomId = entry.location_id;
+
+            // Image lookup using correct current location
+            const imageFile = _roomImageMap && roomId != null && _roomImageMap[roomId];
+            const hasImage = !!imageFile;
+            const imagePath = hasImage ? `./room_images/${imageFile}` : null;
+
             const cardClasses = ['card'];
-            if (isRoomChange) cardClasses.push('room-change-card');
+            if (moved) cardClasses.push('room-change-card');
             if (isPending) cardClasses.push('pending-ai');
 
             const aiSection = Templates.buildAISection(entry, isNewestCard, AppState.polled?.tool_status?.history);
             const memorySynthesisSection = entry.memory_synthesis ? Templates.buildMemorySynthesisFromLog(entry.memory_synthesis, entry.turn) : '';
             const objectiveReviewSection = entry.objective_review ? Templates.buildObjectiveReviewFromLog(entry.objective_review, entry.turn) : '';
 
-            const roomChangeLabel = isRoomChange ? `<span class="room-change">${Utils.escapeHtml(roomName)}</span>` : '';
+            // Build header: transition (From → action → To) or just location name
+            let headerContent;
+            if (moved && entry.prev_location_name && entry.prev_action) {
+                headerContent = `
+                    <div class="card-transition">
+                        <span class="transition-from">${Utils.escapeHtml(entry.prev_location_name)}</span>
+                        <span class="transition-arrow">▸</span>
+                        <span class="transition-action">${Utils.escapeHtml(entry.prev_action)}</span>
+                        <span class="transition-arrow">▸</span>
+                        <span class="transition-to">${Utils.escapeHtml(roomName)}</span>
+                    </div>
+                `;
+            } else {
+                headerContent = `<span class="room-name">${Utils.escapeHtml(roomName)}</span>`;
+            }
 
             const imageHtml = hasImage ? `
                 <div class="card-image">
@@ -2686,7 +2747,7 @@
                     ${imageHtml}
                     <div class="card-content">
                         <div class="card-header">
-                            ${roomChangeLabel}
+                            ${headerContent}
                             <span class="turn-badge">Turn ${entry.turn}</span>
                         </div>
                         <div class="outcome">
@@ -2726,13 +2787,8 @@
                 if (existing && existing.dataset.status === 'complete') return;
             }
 
-            // Calculate result rooms
-            const logsWithResultRoom = logs.map((entry, idx) => {
-                const resultRoomId = idx < logs.length - 1 ? logs[idx + 1].location_id : currentRoomId;
-                return { ...entry, resultRoomId };
-            });
-
-            const displayLogs = logsWithResultRoom.reverse();
+            // Newest first for display
+            const displayLogs = [...logs].reverse();
 
             // Preserve streaming sections
             const preservedSections = {};
@@ -2749,17 +2805,9 @@
                 if (card.querySelector('.thinking.streaming')) preservedReasonerCards.push(card.cloneNode(true));
             });
 
-            // Build all cards
-            let prevResultRoomId = null;
+            // Build all cards — each entry now has correct location_id/location_name
             const cardsHtml = displayLogs.map((entry, idx) => {
-                const resultRoomId = entry.resultRoomId;
-                const isRoomChange = resultRoomId !== prevResultRoomId;
-                prevResultRoomId = resultRoomId;
-                const isNewestCard = idx === 0;
-                const hasImage = _roomImageMap && _roomImageMap[resultRoomId];
-                const imagePath = hasImage ? `./room_images/${_roomImageMap[resultRoomId]}` : null;
-                const roomName = entry.extracted_info?.current_location_name || entry.location_name || 'Unknown';
-                return _buildCardHtml(entry, isRoomChange, roomName, imagePath, hasImage, isNewestCard);
+                return _buildCardHtml(entry, idx === 0);
             }).join('');
 
             // Only auto-scroll to top if user is already near the top (viewing latest turns)

@@ -289,16 +289,22 @@ class Orchestrator:
             ah = self.gs.action_history
             if len(ah) == 0:
                 incoming = self.gs.initial_response
-                inc_loc_id = self.gs.initial_location_id
-                inc_loc_name = self.gs.initial_location_name
+                prev_action = None
+                prev_loc_id = None
+                prev_loc_name = None
             else:
                 prev = ah[-1]
                 incoming = prev.response
-                inc_loc_id = prev.location_id
-                inc_loc_name = prev.location_name
+                prev_action = prev.action
+                prev_loc_id = prev.location_id
+                prev_loc_name = prev.location_name
+            # Current location is where the agent IS now (authoritative from game state)
             self.gs.pending_response = incoming
-            self.gs.pending_location_id = inc_loc_id
-            self.gs.pending_location_name = inc_loc_name
+            self.gs.pending_location_id = self.gs.current_room_id
+            self.gs.pending_location_name = self.gs.current_room_name
+            self.gs.pending_prev_location_id = prev_loc_id
+            self.gs.pending_prev_location_name = prev_loc_name
+            self.gs.pending_prev_action = prev_action
             self.gs.pending_timestamp = datetime.now().isoformat()
             self._export_state(include_pending=True)
         except Exception:
@@ -756,12 +762,18 @@ class Orchestrator:
 
             # Add pending entry for progressive rendering if requested
             if include_pending and self.gs.pending_response:
+                prev_loc = getattr(self.gs, 'pending_prev_location_id', None)
+                cur_loc = self.gs.pending_location_id
                 recent_log.append({
                     "turn": self.gs.turn_count, "action": None,
                     "zork_response": self.gs.pending_response,
                     "reasoning": None,
                     "location_id": self.gs.pending_location_id,
                     "location_name": self.gs.pending_location_name,
+                    "prev_location_id": prev_loc,
+                    "prev_location_name": getattr(self.gs, 'pending_prev_location_name', None),
+                    "prev_action": getattr(self.gs, 'pending_prev_action', None),
+                    "moved": prev_loc is not None and prev_loc != cur_loc,
                     "status": "pending_ai",
                     "timestamp": self.gs.pending_timestamp,
                 })
@@ -828,23 +840,48 @@ class Orchestrator:
         reasonings = self.gs.reasoning_history
 
         for i, entry in enumerate(actions):
-            # Shift response: card N shows response from turn N-1
+            # Game response: what the agent sees upon arrival (result of previous action)
             if i == 0:
                 incoming = self.gs.initial_response
-                inc_loc = self.gs.initial_location_id
-                inc_name = self.gs.initial_location_name
             else:
-                prev = actions[i - 1]
-                incoming = prev.response
-                inc_loc = prev.location_id
-                inc_name = prev.location_name
+                incoming = actions[i - 1].response
+
+            # Current location: where the agent IS this turn (where entry.action is taken)
+            cur_loc = entry.location_id
+            cur_name = entry.location_name
+
+            # Previous location + action that brought us here
+            if i == 0:
+                prev_loc = None
+                prev_name = None
+                prev_action = None
+                moved = False
+            else:
+                prev_loc = actions[i - 1].location_id
+                prev_name = actions[i - 1].location_name
+                prev_action = actions[i - 1].action
+                moved = prev_loc != cur_loc
 
             item = {
                 "turn": i + 1, "action": entry.action,
-                "zork_response": incoming, "location_id": inc_loc, "location_name": inc_name,
+                "zork_response": incoming,
+                "location_id": cur_loc, "location_name": cur_name,
+                "prev_location_id": prev_loc, "prev_location_name": prev_name,
+                "prev_action": prev_action, "moved": moved,
                 "reasoning": reasonings[i].get("reasoning", "") if i < len(reasonings) else "",
                 "status": "complete",
             }
+
+            # Objective selection data from reasoning history
+            if i < len(reasonings) and reasonings[i].get("objective_selection"):
+                obj_sel = reasonings[i]["objective_selection"]
+                if obj_sel.get("id"):
+                    item["objective_selection"] = {
+                        "objective_id": obj_sel["id"],
+                        "objective_text": obj_sel.get("text", ""),
+                        "followup_reasoning": reasonings[i].get("followup_reasoning", ""),
+                    }
+
             if i < len(self.gs.critic_history):
                 item.update(self.gs.critic_history[i])
             if (i + 1) in self.gs.memory_synthesis_results:
