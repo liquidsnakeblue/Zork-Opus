@@ -32,6 +32,7 @@ class Pathfinder:
         self.logger = logger
         self.nav: Optional[NavState] = None
         self.max_path = getattr(config, 'pathfinder_max_path_length', 20)
+        self._failed_targets: Dict[int, int] = {}  # target_id -> turn when last failed
 
     def find_path(self, target_id: int, target_name: str) -> Optional[Dict]:
         """Find path from current location to target using BFS."""
@@ -43,21 +44,33 @@ class Pathfinder:
 
         game_map = self.map_manager.game_map
         if target_id not in game_map.rooms:
-            return {"found": False, "directions": [], "waypoints": [],
+            result = {"found": False, "directions": [], "waypoints": [],
                     "reason": f"L{target_id} not in known map."}
+            self._failed_targets[target_id] = self.game_state.turn_count
+            return result
 
-        result = game_map.find_path_bfs(current, target_id)
-        if result is None:
+        path_result = game_map.find_path_bfs(current, target_id)
+        if path_result is None:
+            self._failed_targets[target_id] = self.game_state.turn_count
             return {"found": False, "directions": [], "waypoints": [],
                     "reason": f"No path from L{current} to L{target_id}."}
 
-        dirs, wps = result
+        dirs, wps = path_result
         if len(dirs) > self.max_path:
             return {"found": False, "directions": [], "waypoints": [],
                     "reason": f"Path too long ({len(dirs)} steps, max {self.max_path})."}
 
+        # Clear failure record on success
+        self._failed_targets.pop(target_id, None)
         return {"found": True, "directions": dirs, "waypoints": wps,
                 "reason": f"Found {len(dirs)}-step path."}
+
+    def recently_failed(self, target_id: int, window: int = 10) -> bool:
+        """Check if pathfinding to this target failed recently."""
+        fail_turn = self._failed_targets.get(target_id)
+        if fail_turn is None:
+            return False
+        return (self.game_state.turn_count - fail_turn) < window
 
     def start_navigation(self, target_id: int, target_name: str) -> bool:
         if self.nav: self.cancel()
@@ -105,3 +118,4 @@ class Pathfinder:
 
     def reset(self):
         self.nav = None
+        self._failed_targets.clear()

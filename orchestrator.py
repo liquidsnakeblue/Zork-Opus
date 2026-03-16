@@ -545,6 +545,17 @@ class Orchestrator:
         target_id = int(m.group(1))
         room_name = self.map_mgr.game_map.room_names.get(target_id, f"Room#{target_id}")
 
+        # Check if this target recently failed — warn the agent immediately
+        if self.pathfinder.recently_failed(target_id, window=15):
+            pf_ctx = (f"\n=== PATHFINDER BLOCKED ===\nTarget: {room_name} (L{target_id})\n"
+                     f"⛔ This target ALREADY FAILED recently. NO PATH EXISTS from your current area.\n"
+                     f"STOP retrying Pathfinder to this room. Instead:\n"
+                     f"1. Explore DIFFERENT unexplored exits to discover new connections\n"
+                     f"2. Select a DIFFERENT objective with Objective: <id>\n"
+                     f"3. Look for alternate routes (chimneys, gates, passages)\n")
+            agent_result = self.agent.get_action("", context + pf_ctx)
+            return agent_result["action"], agent_result.get("reasoning", "")
+
         self.gs.active_tool = "pathfinder"
         self.gs.active_tool_data = {"target_room_id": target_id, "target_name": room_name}
         if self.streaming: self.streaming.broadcast_tool_status(self.gs.active_tool, self.gs.active_tool_data)
@@ -561,9 +572,9 @@ class Orchestrator:
             reason = result["reason"] if result else "Pathfinder error"
             pf_ctx = (f"\n=== PATHFINDER RESULT ===\nTarget: {room_name}\n"
                      f"NO PATH: {reason}\n"
+                     f"⚠️ Do NOT retry Pathfinder to this room — it will fail again.\n"
                      f"ACTION REQUIRED: Explore NEW unexplored exits to discover connections "
-                     f"toward your target. Do NOT retry the same route. Pick a direction you "
-                     f"haven't tried from your current location.\n")
+                     f"toward your target. Pick a direction you haven't tried.\n")
 
         self.gs.tool_history.append({"tool": "pathfinder", "target": room_name, "success": bool(result and result["found"])})
         self.gs.active_tool = None
