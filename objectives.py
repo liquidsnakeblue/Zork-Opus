@@ -213,6 +213,8 @@ Create or update objectives for the agent. You have FULL CONTROL over objectives
 - You can CREATE new objectives
 - You can REMOVE objectives that are stale, completed, or no longer relevant
 
+**CRITICAL: PUZZLE PREREQUISITES** - Study the KEY PUZZLE KNOWLEDGE above carefully. Many puzzles require specific items from other locations. Create PREREQUISITE objectives BEFORE the puzzle objective. Example: if a ritual needs a matchbook, create "Get Matchbook from Dam Lobby" BEFORE "Perform Hades Exorcism". The agent will waste turns attempting puzzles without required items if you don't plan the full sequence.
+
 There are TWO types of objectives:
 
 1. ACTION (PREFERRED): Specific tasks with location context
