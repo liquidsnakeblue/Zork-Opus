@@ -109,6 +109,11 @@ class ObjectiveManager:
                  f"Location: {self.gs.current_room_name} (L{self.gs.current_room_id})",
                  f"Inventory: {', '.join(self.gs.current_inventory) if self.gs.current_inventory else 'empty'}"]
 
+        # Trophy case awareness
+        if self.gs.trophy_case:
+            deposited = sorted(self.gs.trophy_case)
+            parts.append(f"Trophy case ({len(deposited)} deposited): {', '.join(deposited)}")
+
         # Score stagnation awareness
         turns_since_score = self.gs.turn_count - self.gs.last_scoring_turn
         if turns_since_score > 15:
@@ -231,6 +236,7 @@ There are TWO types of objectives:
 === CRITICAL CONSTRAINTS ===
 - Only reference location IDs that exist in the map data above
 - Do NOT suggest acquiring items already in inventory: {self.gs.current_inventory}
+- Do NOT create objectives to collect or deposit items already in the trophy case: {sorted(self.gs.trophy_case) if self.gs.trophy_case else 'none yet'}
 - Keep objectives SHORT and CLEAN (no long paragraphs)
 - Aim for 3-7 total active objectives
 - **NEVER create objectives that duplicate existing active ones** (check CURRENT OBJECTIVES above)

@@ -111,6 +111,14 @@ class ContextManager:
             parts.append(f"=== ITEM TRACKER (LIVE — current positions from game engine) ===\n{item_summary}")
             parts.append("")
 
+        # Trophy case contents
+        if gs.trophy_case:
+            deposited = sorted(gs.trophy_case)
+            parts.append(f"=== TROPHY CASE ({len(deposited)} treasures deposited) ===")
+            for item in deposited:
+                parts.append(f"  ✓ {item}")
+            parts.append("")
+
         # Location memories
         if self.memory_manager:
             mem_text = self.memory_manager.get_location_memory(gs.current_room_id)
@@ -205,6 +213,7 @@ class ContextManager:
             carried_treasures = [
                 item for item in gs.current_inventory
                 if any(kw in item.lower() for kw in _TREASURE_KEYWORDS)
+                and item not in gs.trophy_case
             ]
             if carried_treasures:
                 # IMMEDIATE: agent is in the Living Room with treasures

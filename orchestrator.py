@@ -8,7 +8,9 @@ import time
 import json
 import logging
 import pickle
+import traceback
 from collections import deque
+from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 
@@ -149,12 +151,19 @@ class Orchestrator:
         self.ctx.memory_manager = self.memory
         self.ctx.pathfinder = self.pathfinder
 
+        # Load persistent trophy case state
+        self._load_trophy_case()
+
         # Tracking
         self.critic_confidence_history: List[float] = []
         self._action_history: deque = deque(maxlen=30)
         self._location_history: deque = deque(maxlen=20)
         self._last_score_turn = 0
         self._last_tracked_score = 0
+
+        # Consecutive turn-error tracking (prevents silent look loops)
+        self._consecutive_turn_errors = 0
+        self._max_consecutive_errors = 3  # terminate after this many back-to-back errors
 
         # Rejection state
         self._rejected_this_turn: List[str] = []
@@ -211,6 +220,7 @@ class Orchestrator:
             self._finalize_episode(score)
             self._export_state()
             self.map_mgr.save_map()
+            self._save_trophy_case()
 
             return score
 
@@ -236,8 +246,27 @@ class Orchestrator:
 
             try:
                 action, current = self._run_turn(current)
+                self._consecutive_turn_errors = 0  # Reset on success
             except Exception as e:
-                self.logger.error(f"Turn error, using 'look': {e}")
+                self._consecutive_turn_errors += 1
+                tb = traceback.format_exc()
+                self.logger.error(
+                    f"Turn {self.gs.turn_count} error ({self._consecutive_turn_errors}/"
+                    f"{self._max_consecutive_errors} consecutive): {e}\n{tb}")
+
+                # Record the error in action history so it's visible in logs/viewer
+                error_msg = f"[TURN ERROR {self._consecutive_turn_errors}/{self._max_consecutive_errors}] {e}"
+                self.ctx.add_action_to_history(
+                    "look", error_msg,
+                    self.gs.current_room_id, self.gs.current_room_name)
+
+                if self._consecutive_turn_errors >= self._max_consecutive_errors:
+                    self.logger.error(
+                        f"FATAL: {self._consecutive_turn_errors} consecutive turn errors. "
+                        f"Terminating episode to prevent infinite look loop.")
+                    self.gs.game_over = True
+                    return self.gs.previous_score
+
                 action, current = "look", current
 
             # Progress tracking
@@ -435,6 +464,23 @@ class Orchestrator:
         if score_delta > 0:
             self.gs.last_scoring_turn = self.gs.turn_count
         self.gs.update_item_locations()
+
+        # ── Trophy case deposit detection ──
+        items_lost_this_turn = inv_names_before - inv_names_after
+        if items_lost_this_turn and loc_id_before == 193:  # Living Room
+            action_lower = action.lower()
+            is_put_in_case = (
+                any(kw in action_lower for kw in ["put", "drop", "place", "insert"])
+                and ("case" in action_lower or "trophy" in action_lower)
+            )
+            # Fallback: score increase at Living Room with item loss = deposit
+            is_score_deposit = score_delta > 0
+            if is_put_in_case or is_score_deposit:
+                for item in items_lost_this_turn:
+                    self.gs.record_deposit(item)
+                    self.logger.info(f"Trophy case deposit detected: {item}")
+                self._save_trophy_case()
+
         # first_visit: check memory cache (cross-episode), not visited_locations (episode-scoped)
         first_visit = loc_id_after not in self.memory.cache.persistent
 
@@ -777,6 +823,24 @@ class Orchestrator:
                 f"EPISODE ENDS in {remaining} turns without score increase.{advice}\n{'='*60}")
 
     # ── State export ──
+
+    def _save_trophy_case(self):
+        """Persist trophy case contents to JSON."""
+        try:
+            path = Path(self.config.game_workdir) / "trophy_case.json"
+            path.write_text(json.dumps(sorted(self.gs.trophy_case)))
+        except Exception as e:
+            self.logger.warning(f"Failed to save trophy case: {e}")
+
+    def _load_trophy_case(self):
+        """Load trophy case contents from JSON."""
+        try:
+            path = Path(self.config.game_workdir) / "trophy_case.json"
+            if path.exists():
+                self.gs.trophy_case = set(json.loads(path.read_text()))
+                self.logger.info(f"Loaded trophy case: {sorted(self.gs.trophy_case)}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load trophy case: {e}")
 
     def _export_state(self, include_pending: bool = False):
         if not self.config.enable_state_export: return

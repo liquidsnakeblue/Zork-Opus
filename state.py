@@ -114,6 +114,9 @@ class GameState:
     # location_type: "inventory", "room", "unknown"
     item_locations: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
+    # Trophy case tracking (persists across episodes, like death_count)
+    trophy_case: Set[str] = field(default_factory=set)
+
     # Session-persistent
     death_count: int = 0
     death_counted_this_episode: bool = False
@@ -238,6 +241,17 @@ class GameState:
         if unknown_items:
             lines.append(f"  Lost/stolen: {', '.join(unknown_items)}")
         return "\n".join(lines)
+
+    # ── Trophy case helpers ──
+
+    def record_deposit(self, item: str) -> None:
+        """Record a treasure deposited in the trophy case."""
+        self.trophy_case.add(item)
+
+    @property
+    def trophy_case_contents(self) -> List[str]:
+        """Sorted list of items in the trophy case."""
+        return sorted(self.trophy_case)
 
     # ── Objective helpers ──
 
