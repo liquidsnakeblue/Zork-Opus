@@ -1469,123 +1469,212 @@
         .map-control-btn.fit-btn { font-size: 12px; }
 
         /* ================================================================
-           Section 12: Navigation Bar
+           Section 12: Pathfinder Route Strip
            ================================================================ */
-        .navigation-bar {
+        .pathfinder-strip {
             display: flex;
             align-items: center;
-            gap: 16px;
-            padding: 10px 16px;
-            background: linear-gradient(135deg, rgba(100, 200, 255, 0.15), rgba(100, 200, 255, 0.05));
-            border: 1px solid rgba(100, 200, 255, 0.3);
-            border-radius: 8px;
-            margin: 8px 12px;
-            transition: opacity var(--duration-normal) ease, max-height var(--duration-normal) ease;
-            overflow: hidden;
+            gap: 0;
+            padding: 14px 24px;
+            background: linear-gradient(180deg, rgba(100, 200, 255, 0.08) 0%, rgba(100, 200, 255, 0.02) 100%);
+            border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+            overflow-x: auto;
+            overflow-y: hidden;
+            flex-shrink: 0;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            scroll-behavior: smooth;
         }
 
-        .navigation-bar.hidden {
-            opacity: 0;
-            max-height: 0;
-            padding: 0 16px;
-            margin: 0 12px;
-            border: none;
-        }
+        .pathfinder-strip::-webkit-scrollbar { display: none; }
 
-        .nav-destination {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex: 0 0 auto;
-        }
+        .pathfinder-strip.hidden { display: none; }
 
-        .nav-thumbnail {
-            width: 48px;
-            height: 48px;
-            border-radius: 6px;
-            object-fit: cover;
-            border: 2px solid rgba(100, 200, 255, 0.5);
-            background: var(--bg-tertiary);
-        }
-
-        .nav-thumbnail[src=""],
-        .nav-thumbnail:not([src]) { display: none; }
-
-        .nav-info {
+        /* Pathfinder Node (room waypoint) */
+        .pathfinder-node {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            padding: 4px 8px;
+            position: relative;
+            transition: all var(--duration-normal) var(--ease-out);
         }
 
-        .nav-label {
+        .pathfinder-node-img {
+            width: 64px;
+            height: 64px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+            background: var(--bg-tertiary);
+            transition: all var(--duration-normal) var(--ease-out);
+        }
+
+        .pathfinder-no-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: var(--text-dim);
+        }
+
+        .pathfinder-node-name {
             font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .nav-room-name {
-            font-size: var(--text-md);
-            font-weight: 600;
-            color: var(--accent-nav-blue);
-            max-width: 140px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 80px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .nav-progress {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 100px;
+        /* Current room — glowing gold */
+        .pathfinder-node.current {
+            transform: scale(1.15);
+            z-index: 10;
         }
 
-        .nav-progress-bar {
-            height: 6px;
-            background: rgba(100, 200, 255, 0.2);
-            border-radius: 3px;
-            overflow: hidden;
+        .pathfinder-node.current .pathfinder-node-img {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 20px 4px rgba(212, 168, 75, 0.5),
+                        0 0 40px 8px rgba(212, 168, 75, 0.2);
         }
 
-        .nav-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent-nav-blue), #4da8df);
-            border-radius: 3px;
-            transition: width var(--duration-normal) ease;
-            width: 0%;
+        .pathfinder-node.current .pathfinder-node-name {
+            color: var(--accent-gold);
+            font-weight: 700;
         }
 
-        .nav-progress-text {
-            font-size: var(--text-sm);
-            color: var(--text-muted);
-            text-align: center;
+        .pathfinder-here-marker {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: var(--accent-gold);
+            animation: hereMarkerPulse 1.5s ease-in-out infinite;
+            filter: drop-shadow(0 0 4px rgba(212, 168, 75, 0.8));
         }
 
-        .nav-direction {
+        /* Completed rooms — dimmed */
+        .pathfinder-node.completed {
+            opacity: 0.4;
+            filter: grayscale(0.6);
+        }
+
+        .pathfinder-node.completed .pathfinder-node-img {
+            border-color: var(--border-subtle);
+        }
+
+        /* Destination room — teal highlight */
+        .pathfinder-node.destination .pathfinder-node-img {
+            border-color: var(--accent-teal);
+            box-shadow: 0 0 12px 2px rgba(91, 184, 168, 0.4);
+        }
+
+        .pathfinder-node.destination .pathfinder-node-name {
+            color: var(--accent-teal);
+            font-weight: 600;
+        }
+
+        /* Arrow connector between nodes */
+        .pathfinder-arrow {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 2px;
-            padding: 6px 12px;
-            background: rgba(100, 200, 255, 0.1);
-            border-radius: 6px;
-            border: 1px solid rgba(100, 200, 255, 0.2);
+            flex-shrink: 0;
+            min-width: 48px;
+            padding: 0 2px;
         }
 
-        .nav-direction-label {
-            font-size: var(--text-xs);
+        .pathfinder-arrow-label {
+            font-size: 9px;
+            font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .nav-direction-value {
-            font-size: var(--text-md);
-            font-weight: 700;
+        .pathfinder-arrow-line {
+            width: 100%;
+            height: 3px;
+            background: var(--border-color);
+            border-radius: 2px;
+            position: relative;
+            min-width: 32px;
+        }
+
+        /* Chevron on arrow */
+        .pathfinder-arrow-line::after {
+            content: '';
+            position: absolute;
+            right: -1px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid var(--border-color);
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+
+        /* Active arrow — flowing pulse animation */
+        .pathfinder-arrow.active .pathfinder-arrow-label {
             color: var(--accent-nav-blue);
-            text-transform: uppercase;
+        }
+
+        .pathfinder-arrow.active .pathfinder-arrow-line {
+            background: linear-gradient(90deg,
+                rgba(100, 200, 255, 0.2) 0%,
+                var(--accent-nav-blue) 40%,
+                rgba(100, 200, 255, 0.8) 60%,
+                rgba(100, 200, 255, 0.2) 100%
+            );
+            background-size: 200% 100%;
+            animation: arrowFlow 1.5s ease-in-out infinite;
+            height: 4px;
+        }
+
+        .pathfinder-arrow.active .pathfinder-arrow-line::after {
+            border-left-color: var(--accent-nav-blue);
+            animation: arrowChevronPulse 1.5s ease-in-out infinite;
+        }
+
+        /* Completed arrow — dimmed solid */
+        .pathfinder-arrow.completed .pathfinder-arrow-line {
+            background: var(--border-subtle);
+            opacity: 0.4;
+        }
+
+        .pathfinder-arrow.completed .pathfinder-arrow-line::after {
+            border-left-color: var(--border-subtle);
+            opacity: 0.4;
+        }
+
+        .pathfinder-arrow.completed .pathfinder-arrow-label {
+            opacity: 0.4;
+        }
+
+        /* Pathfinder-specific animations */
+        @keyframes arrowFlow {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        @keyframes arrowChevronPulse {
+            0%, 100% { opacity: 0.6; transform: translateY(-50%) scale(1); }
+            50% { opacity: 1; transform: translateY(-50%) scale(1.3); }
+        }
+
+        @keyframes hereMarkerPulse {
+            0%, 100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+            50% { transform: translateX(-50%) translateY(-4px); opacity: 0.7; }
         }
 
         /* ================================================================
@@ -2056,6 +2145,8 @@
             </div>
         </div>
 
+        <div id="pathfinderStrip" class="pathfinder-strip hidden"></div>
+
         <div class="mobile-tabs" id="mobile-tabs">
             <button class="mobile-tab active" data-tab="chat">Adventure Log</button>
             <button class="mobile-tab" data-tab="map">Map & Objectives</button>
@@ -2094,28 +2185,6 @@
                     <div class="map-stats">
                         <div><span id="room-count">--</span> rooms</div>
                         <div><span id="connection-count">--</span> connections</div>
-                    </div>
-                </div>
-
-                <div id="navigationBar" class="navigation-bar hidden">
-                    <div class="nav-destination">
-                        <img id="navDestinationImg" class="nav-thumbnail" src="" alt="">
-                        <div class="nav-info">
-                            <div class="nav-label">Navigating to</div>
-                            <div class="nav-room-name" id="navRoomName">--</div>
-                        </div>
-                    </div>
-                    <div class="nav-progress">
-                        <div class="nav-progress-bar">
-                            <div class="nav-progress-fill" id="navProgressFill"></div>
-                        </div>
-                        <div class="nav-progress-text">
-                            <span id="navStepText">Step 0 of 0</span>
-                        </div>
-                    </div>
-                    <div class="nav-direction">
-                        <div class="nav-direction-label">Next</div>
-                        <div class="nav-direction-value" id="navNextDirection">--</div>
                     </div>
                 </div>
 
@@ -3163,42 +3232,88 @@
     })();
 
     /* ================================================================
-       Section 28: Navigation Bar
+       Section 28: Pathfinder Route Strip
        ================================================================ */
-    const NavigationRenderer = {
-        update() {
-            const navBar = document.getElementById('navigationBar');
-            if (!navBar) return;
+    const PathfinderRenderer = (() => {
+        let _roomImageMap = null;
+        let _lastNavHash = null;
+
+        function setRoomImageMap(map) { _roomImageMap = map; }
+
+        function update() {
+            const strip = document.getElementById('pathfinderStrip');
+            if (!strip) return;
             const navigation = AppState.polled?.navigation;
 
-            if (!navigation || !navigation.navigation_active) {
-                navBar.classList.add('hidden');
+            if (!navigation || !navigation.navigation_active || !navigation.waypoints || navigation.waypoints.length === 0) {
+                strip.classList.add('hidden');
+                _lastNavHash = null;
                 return;
             }
 
-            navBar.classList.remove('hidden');
-            const roomImageMap = MapRenderer.getCy() ? null : null; // uses the shared map
-            const navRoomName = document.getElementById('navRoomName');
-            const navDestImg = document.getElementById('navDestinationImg');
-            const navStepText = document.getElementById('navStepText');
-            const navProgressFill = document.getElementById('navProgressFill');
-            const navNextDir = document.getElementById('navNextDirection');
+            // Diff check — avoid re-rendering if nothing changed
+            const navHash = `${navigation.current_step}|${navigation.waypoints.length}|${navigation.target_room_id}`;
+            if (navHash === _lastNavHash) return;
+            _lastNavHash = navHash;
 
-            if (navRoomName) navRoomName.textContent = navigation.target_room || 'Unknown';
-            if (navDestImg) {
-                // Try to get image from the room image map
-                const targetId = navigation.target_room_id;
-                navDestImg.src = '';
-                navDestImg.style.display = 'none';
-                // Image loading handled by the global roomImageMap
+            strip.classList.remove('hidden');
+            const waypoints = navigation.waypoints;
+            const currentStep = navigation.current_step || 0;
+
+            let html = '';
+            waypoints.forEach((wp, i) => {
+                const isCurrent = (i === currentStep);
+                const isCompleted = (i < currentStep);
+                const isDestination = (i === waypoints.length - 1);
+
+                let nodeClass = 'pathfinder-node';
+                if (isCurrent) nodeClass += ' current';
+                else if (isCompleted) nodeClass += ' completed';
+                if (isDestination && !isCurrent) nodeClass += ' destination';
+
+                // Room image lookup
+                const imageFile = _roomImageMap && _roomImageMap[wp.room_id];
+                const imgSrc = imageFile ? `./room_images/${imageFile}` : '';
+
+                html += `<div class="${nodeClass}" data-room-id="${wp.room_id}">`;
+                if (isCurrent) {
+                    html += '<span class="pathfinder-here-marker">▼</span>';
+                }
+                if (imgSrc) {
+                    html += `<img class="pathfinder-node-img" src="${imgSrc}" alt="${Utils.escapeHtml(wp.room_name)}" onerror="this.classList.add('pathfinder-no-image');this.outerHTML='<div class=\\'pathfinder-node-img pathfinder-no-image\\'>?</div>'">`;
+                } else {
+                    html += '<div class="pathfinder-node-img pathfinder-no-image">?</div>';
+                }
+                html += `<span class="pathfinder-node-name" title="${Utils.escapeHtml(wp.room_name)}">${Utils.escapeHtml(wp.room_name)}</span>`;
+                html += '</div>';
+
+                // Arrow to next (if not last waypoint)
+                if (i < waypoints.length - 1) {
+                    const dir = wp.direction_to_next || '';
+                    let arrowClass = 'pathfinder-arrow';
+                    if (i === currentStep) arrowClass += ' active';
+                    else if (i < currentStep) arrowClass += ' completed';
+
+                    html += `<div class="${arrowClass}">`;
+                    html += `<span class="pathfinder-arrow-label">${Utils.escapeHtml(dir)}</span>`;
+                    html += '<div class="pathfinder-arrow-line"></div>';
+                    html += '</div>';
+                }
+            });
+
+            strip.innerHTML = html;
+
+            // Auto-scroll to center the current node
+            const currentNode = strip.querySelector('.pathfinder-node.current');
+            if (currentNode) {
+                setTimeout(() => {
+                    currentNode.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }, 50);
             }
-            const cur = navigation.current_step || 0;
-            const total = navigation.total_steps || 0;
-            if (navStepText) navStepText.textContent = `Step ${cur} of ${total}`;
-            if (navProgressFill && total > 0) navProgressFill.style.width = `${(cur / total) * 100}%`;
-            if (navNextDir) navNextDir.textContent = navigation.current_direction || '--';
         }
-    };
+
+        return { update, setRoomImageMap };
+    })();
 
     /* ================================================================
        Section 22: WebSocket Handler
@@ -3771,7 +3886,7 @@
             if (DiffEngine.hasObjectivesChanged(prev, curr)) ObjectivesRenderer.update();
             if (DiffEngine.hasTimelineChanged(prev, curr)) TimelineRenderer.update();
             if (DiffEngine.hasMapChanged(prev, curr)) MapRenderer.update();
-            if (DiffEngine.hasNavigationChanged(prev, curr)) NavigationRenderer.update();
+            if (DiffEngine.hasNavigationChanged(prev, curr)) PathfinderRenderer.update();
         }
 
         function _adjustInterval(hasPending) {
@@ -3949,17 +4064,8 @@
             else document.exitFullscreen();
         });
 
-        // Navigation image loading (needs roomImageMap reference)
-        const origNavUpdate = NavigationRenderer.update;
-        NavigationRenderer.update = function() {
-            origNavUpdate.call(this);
-            const nav = AppState.polled?.navigation;
-            if (nav?.navigation_active && roomImageMap) {
-                const img = document.getElementById('navDestinationImg');
-                const file = roomImageMap[nav.target_room_id];
-                if (img && file) { img.src = `./room_images/${file}`; img.style.display = 'block'; }
-            }
-        };
+        // Pass room image map to pathfinder renderer
+        PathfinderRenderer.setRoomImageMap(roomImageMap);
 
         // Init modules
         MapRenderer.init();

@@ -898,9 +898,14 @@ class Orchestrator:
                 "knowledge_base": self.knowledge.get_export_data(),
                 "navigation": {
                     "navigation_active": self.pathfinder.is_active,
-                    "target": self.pathfinder.nav.target_name if self.pathfinder.nav else None,
+                    "target_room": self.pathfinder.nav.target_name if self.pathfinder.nav else None,
+                    "target_room_id": self.pathfinder.nav.target_id if self.pathfinder.nav else None,
                     "path": self.pathfinder.nav.path if self.pathfinder.nav else None,
-                    "step": self.pathfinder.nav.step if self.pathfinder.nav else None,
+                    "waypoints": self.pathfinder.nav.waypoints if self.pathfinder.nav else None,
+                    "current_step": self.pathfinder.nav.step if self.pathfinder.nav else None,
+                    "total_steps": len(self.pathfinder.nav.path) if self.pathfinder.nav else 0,
+                    "current_direction": self.pathfinder.current_direction() if self.pathfinder.nav else None,
+                    "start_room_id": self.pathfinder.nav.start_id if self.pathfinder.nav else None,
                 },
                 "performance": {
                     "memory_entries": len(self.gs.memory_log_history),
