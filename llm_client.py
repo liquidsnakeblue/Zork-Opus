@@ -320,6 +320,8 @@ def _strip_control_chars(s: str) -> str:
 
 def extract_json(content: str) -> str:
     """Extract JSON from text that may contain reasoning, markdown fences, or format tokens."""
+    # Strip control characters early (LLMs sometimes emit raw \x00-\x1f inside strings)
+    content = _strip_control_chars(content)
     # Strip thinking blocks (Qwen 3.5 etc.)
     content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
     # Strip model format tokens (GPT-OSS etc.)

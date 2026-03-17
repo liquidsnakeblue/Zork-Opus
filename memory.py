@@ -16,6 +16,42 @@ from state import GameState, ActionEntry
 from llm_client import LLMClient, extract_json
 
 
+def _fix_json_control_chars(s: str) -> str:
+    """Escape unescaped control characters inside JSON string values.
+    Walks the string tracking in-string state to only escape chars inside quotes."""
+    result = []
+    in_string = False
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if not in_string:
+            result.append(c)
+            if c == '"':
+                in_string = True
+        else:
+            if c == '\\' and i + 1 < len(s):
+                # Already escaped — pass through both chars
+                result.append(c)
+                result.append(s[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                result.append(c)
+                in_string = False
+            elif c == '\n':
+                result.append('\\n')
+            elif c == '\r':
+                result.append('\\r')
+            elif c == '\t':
+                result.append('\\t')
+            elif ord(c) < 0x20:
+                result.append(f'\\u{ord(c):04x}')
+            else:
+                result.append(c)
+        i += 1
+    return ''.join(result)
+
+
 # ── Data Models ──
 
 MemoryStatusType = Literal["ACTIVE", "TENTATIVE", "SUPERSEDED"]
@@ -882,8 +918,13 @@ Optional fields: `goal`, `invalidate_memory_titles`, `invalidation_reason`"""
                 test = _json.loads(json_str)
                 if isinstance(test, list) and len(test) > 0:
                     json_str = _json.dumps(test[0])
+                elif isinstance(test, dict):
+                    # Re-serialize to guarantee clean JSON (escapes control chars)
+                    json_str = _json.dumps(test)
             except _json.JSONDecodeError:
-                pass
+                # LLMs sometimes emit unescaped control chars inside JSON strings.
+                # Fix by escaping all bare control chars, then retry.
+                json_str = _fix_json_control_chars(json_str)
             parsed = SynthesisResponse.model_validate_json(json_str)
 
             # Hallucination caps
