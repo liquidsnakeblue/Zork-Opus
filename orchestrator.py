@@ -151,8 +151,8 @@ class Orchestrator:
         self.ctx.memory_manager = self.memory
         self.ctx.pathfinder = self.pathfinder
 
-        # Load persistent trophy case state
-        self._load_trophy_case()
+        # Trophy case is episode-scoped (Zork resets each game)
+        # Cross-episode knowledge lives in memories/knowledgebase, not here
 
         # Tracking
         self.critic_confidence_history: List[float] = []
@@ -220,7 +220,6 @@ class Orchestrator:
             self._finalize_episode(score)
             self._export_state()
             self.map_mgr.save_map()
-            self._save_trophy_case()
 
             return score
 
@@ -484,7 +483,6 @@ class Orchestrator:
                 for item in items_lost_this_turn:
                     self.gs.record_deposit(item)
                     self.logger.info(f"Trophy case deposit detected: {item}")
-                self._save_trophy_case()
 
         # first_visit: check memory cache (cross-episode), not visited_locations (episode-scoped)
         first_visit = loc_id_after not in self.memory.cache.persistent
@@ -848,24 +846,6 @@ class Orchestrator:
                 f"EPISODE ENDS in {remaining} turns without score increase.{advice}\n{'='*60}")
 
     # ── State export ──
-
-    def _save_trophy_case(self):
-        """Persist trophy case contents to JSON."""
-        try:
-            path = Path(self.config.game_workdir) / "trophy_case.json"
-            path.write_text(json.dumps(sorted(self.gs.trophy_case)))
-        except Exception as e:
-            self.logger.warning(f"Failed to save trophy case: {e}")
-
-    def _load_trophy_case(self):
-        """Load trophy case contents from JSON."""
-        try:
-            path = Path(self.config.game_workdir) / "trophy_case.json"
-            if path.exists():
-                self.gs.trophy_case = set(json.loads(path.read_text()))
-                self.logger.info(f"Loaded trophy case: {sorted(self.gs.trophy_case)}")
-        except Exception as e:
-            self.logger.warning(f"Failed to load trophy case: {e}")
 
     def _export_state(self, include_pending: bool = False):
         if not self.config.enable_state_export: return
