@@ -51,7 +51,7 @@ class Memory:
 class SynthesisResponse(BaseModel):
     model_config = {"strict": True}
     reasoning: str = Field(default="", max_length=8000)
-    should_remember: bool
+    should_remember: bool = False
     category: Optional[str] = None
     memory_title: Optional[str] = None
     memory_text: Optional[str] = None

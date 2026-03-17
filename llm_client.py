@@ -317,11 +317,21 @@ def extract_json(content: str) -> str:
         end = content.find("```", start)
         if end != -1:
             return content[start:end].strip()
+        else:
+            # No closing fence (truncated response) — strip opening and continue
+            content = content[start:].strip()
 
     if content.strip().startswith("```") and content.strip().endswith("```"):
         lines = content.strip().split("\n")
         if len(lines) >= 2:
             return "\n".join(lines[1:-1]).strip()
+    elif content.strip().startswith("```"):
+        # Opening fence without json tag and no closing fence
+        lines = content.strip().split("\n")
+        if len(lines) >= 2:
+            content = "\n".join(lines[1:]).strip()
+            if content.endswith("```"):
+                content = content[:-3].strip()
 
     # Find balanced braces
     start = content.find('{')

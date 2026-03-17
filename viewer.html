@@ -2665,7 +2665,7 @@
                 return 0;
             });
 
-            const active = sorted.filter(o => o.status !== 'completed');
+            const active = sorted.filter(o => o.status === 'in_progress' || o.status === 'pending');
             const recent = sorted.filter(o => {
                 if (o.status !== 'completed') return false;
                 return currentTurn - (o.completed_turn || 0) <= 7;

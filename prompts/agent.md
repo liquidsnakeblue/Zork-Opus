@@ -138,7 +138,9 @@ When stuck at the same location with no progress:
 
 **When to use:** Destination is 2+ rooms away and appears in the known rooms list.
 
-**Syntax:** `"action": "Pathfinder: <room_id>"` where room_id is from the room list (e.g., L79 → use 79)
+**Syntax:** `"action": "Pathfinder: <number>"` — the number is the room ID from the map (e.g., map shows R79 or context shows L79 → use just `79`).
+- ✅ CORRECT: `Pathfinder: 79`, `Pathfinder: 193`
+- ❌ WRONG: `Pathfinder: Living Room`, `Pathfinder: R79`, `Pathfinder: L79`, `Pathfinder: go to 79`
 
 **Workflow:**
 1. Call pathfinder: `"action": "Pathfinder: 79"`

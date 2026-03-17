@@ -212,7 +212,7 @@ class ZorkAgent:
 
     def _clean(self, action: str) -> str:
         a = re.sub(r"```.*?```", "", action.strip(), flags=re.DOTALL)
-        a = re.sub(r"`", "", a).strip().lower().strip(".,!?;:")
+        a = re.sub(r"[`\"']", "", a).strip().lower().strip(".,!?;:")
         return a or "look"
 
     def _extract_partial_fields(self, partial: str) -> dict:

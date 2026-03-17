@@ -558,8 +558,31 @@ class Orchestrator:
     # ── Handler chain ──
 
     def _handle_pathfinder(self, action, reasoning, context) -> Tuple[str, str]:
-        m = re.match(r'^[Pp]athfinder:\s*(\d+)$', action.strip())
-        if not m: return action, reasoning
+        stripped = action.strip()
+        if 'pathfinder' in stripped.lower():
+            self.logger.info(f"Pathfinder detection: action={stripped!r} bytes={stripped.encode()!r}")
+        m = re.match(r'^[Pp]athfinder:\s*(\d+)$', stripped)
+        if not m:
+            # Catch malformed pathfinder attempts before they reach Zork
+            if re.match(r'^[Pp]athfinder\s*:', stripped):
+                # Extract number if buried in noise like "Pathfinder: R79" or "Pathfinder: L193"
+                num = re.search(r'\d+', stripped)
+                if num:
+                    m_fixed = re.match(r'^[Pp]athfinder:\s*(?:R|L|room\s*#?\s*)?(\d+)', stripped, re.IGNORECASE)
+                    if m_fixed:
+                        m = m_fixed
+                        self.logger.warning(f"Fixed malformed pathfinder action: '{stripped}' → ID {m.group(1)}")
+                if not m:
+                    # Can't salvage — re-prompt agent with format reminder
+                    self.logger.warning(f"Rejected malformed pathfinder action: '{stripped}'")
+                    pf_ctx = (f"\n=== PATHFINDER FORMAT ERROR ===\n"
+                             f"Your action '{stripped}' is not valid.\n"
+                             f"Correct format: Pathfinder: <number>  (e.g., Pathfinder: 79)\n"
+                             f"Use ONLY the numeric room ID from the map. No room names, no R/L prefix.\n")
+                    agent_result = self.agent.get_action("", context + pf_ctx)
+                    return agent_result["action"], agent_result.get("reasoning", "")
+            else:
+                return action, reasoning
 
         target_id = int(m.group(1))
         room_name = self.map_mgr.game_map.room_names.get(target_id, f"Room#{target_id}")
