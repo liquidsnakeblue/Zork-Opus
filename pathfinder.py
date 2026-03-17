@@ -60,6 +60,28 @@ class Pathfinder:
             return {"found": False, "directions": [], "waypoints": [],
                     "reason": f"Path too long ({len(dirs)} steps, max {self.max_path})."}
 
+        # Probe each hop via Z-machine save/restore to catch impassable connections
+        # (e.g., trap door closed, gate locked). wps[i] is the room before dirs[i].
+        if self.map_manager and hasattr(self.map_manager, 'validate_path'):
+            hops = [
+                (dirs[i], wps[i]["room_id"], wps[i + 1]["room_id"])
+                for i in range(len(dirs))
+            ]
+            probe = self.map_manager.validate_path(hops)
+            if not probe["valid"]:
+                bh = probe["blocked_hop"]
+                self._failed_targets[target_id] = self.game_state.turn_count
+                return {
+                    "found": False,
+                    "directions": [],
+                    "waypoints": [],
+                    "reason": (
+                        f"Path blocked at {bh['room_name']}(L{bh['room_id']}) "
+                        f"-> {bh['direction']} (connection is currently impassable)."
+                    ),
+                    "blocked_hop": bh,
+                }
+
         # Clear failure record on success
         self._failed_targets.pop(target_id, None)
         return {"found": True, "directions": dirs, "waypoints": wps,

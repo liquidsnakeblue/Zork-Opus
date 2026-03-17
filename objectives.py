@@ -172,17 +172,22 @@ class ObjectiveManager:
             for c in completed:
                 parts.append(f"  ✓ {c['objective']} (turn {c['completed_turn']})")
 
-        # Recent actions
-        recent = self.gs.action_history[-10:]
+        # Recent actions (extended window for better frontier awareness)
+        recent = self.gs.action_history[-50:]
         if recent:
-            parts.append("\nRECENT ACTIONS:")
+            parts.append(f"\nRECENT ACTIONS (last {len(recent)} turns):")
             for e in recent:
-                parts.append(f"  T{e.turn}: {e.action} → {e.response[:100]}")
+                parts.append(f"  T{e.turn}: {e.action} @ {e.location_name} → {e.response[:80]}")
 
-        # Map info
+        # Map info + exploration frontier
         if self.map_manager:
             metrics = self.map_manager.get_quality_metrics()
             parts.append(f"\nMap: {metrics.get('room_count', 0)} rooms, {metrics.get('connection_count', 0)} connections")
+
+            # Exploration frontier: rooms with untried exits (from Z-machine ground truth)
+            frontier = self.map_manager.game_map.get_exploration_frontier()
+            if frontier:
+                parts.append(f"\n{frontier}")
 
         # Knowledgebase (strategic analysis from gameplay)
         if self.knowledge:

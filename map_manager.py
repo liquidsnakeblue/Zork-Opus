@@ -131,6 +131,80 @@ class MapManager:
             pass
         return None
 
+    def validate_path(self, hops, num_probes: int = 3) -> dict:
+        """Probe each hop in a BFS path using the Z-machine save/restore.
+
+        hops: list of (direction, from_room_id, to_room_id) tuples
+        Returns dict with keys:
+          - "valid": bool — True if all hops passed all probes
+          - "blocked_hop": dict or None — first hop that failed
+        """
+        if not self.jericho or not hops:
+            return {"valid": True, "blocked_hop": None}
+
+        try:
+            origin_state = self.jericho.save_state()
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"validate_path: could not save state: {e}")
+            return {"valid": True, "blocked_hop": None}
+
+        try:
+            for hop_index, (direction, from_room_id, to_room_id) in enumerate(hops):
+                # Preceding directions needed to reach this hop's start room
+                preceding_dirs = [d for d, _, _ in hops[:hop_index]]
+
+                failures = 0
+                for _ in range(num_probes):
+                    try:
+                        self.jericho.restore_state(origin_state)
+                        for pre_dir in preceding_dirs:
+                            self.jericho.send_command(pre_dir)
+                        self.jericho.send_command(direction)
+                        loc = self.jericho.get_location()
+                        arrived = loc.num if loc else None
+                        if arrived != to_room_id:
+                            failures += 1
+                    except Exception:
+                        failures += 1
+
+                if failures == num_probes:
+                    from_name = self.game_map.room_names.get(from_room_id, f"Room#{from_room_id}")
+                    if self.logger:
+                        self.logger.warning(
+                            f"validate_path: hop BLOCKED — "
+                            f"{from_name}(L{from_room_id}) -{direction}-> "
+                            f"(expected L{to_room_id}, all {num_probes} probes failed)"
+                        )
+                    return {
+                        "valid": False,
+                        "blocked_hop": {
+                            "direction": direction,
+                            "room_id": from_room_id,
+                            "room_name": from_name,
+                            "to_room_id": to_room_id,
+                        },
+                    }
+
+            return {"valid": True, "blocked_hop": None}
+        finally:
+            try:
+                self.jericho.restore_state(origin_state)
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"validate_path: FAILED to restore state: {e}")
+
+    def record_valid_exits(self, room_id: int, exits: list):
+        """Store Z-machine ground-truth exits on the room's exit set."""
+        if room_id not in self.game_map.rooms:
+            return
+        room = self.game_map.rooms[room_id]
+        before = len(room.exits)
+        room.exits.update(exits)
+        if len(room.exits) > before and self.logger:
+            new = set(exits) - (room.exits - set(exits))
+            self.logger.debug(f"Recorded new exits for {room.name} (L{room_id}): {sorted(set(exits) - (room.exits - set(exits)))}")
+
     def track_failed_action(self, action: str, location_id: int, location_name: str):
         self.game_state.failed_actions_by_location.setdefault(location_name, []).append(action)
         count = self.game_map.track_exit_failure(location_id, action)

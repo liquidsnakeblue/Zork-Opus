@@ -110,20 +110,6 @@ class LLMClient:
     def _should_suppress_response_format(self, model: str) -> bool:
         return any(m in model.lower() for m in RESPONSE_FORMAT_BLOCKED)
 
-    def _is_vllm_server(self) -> bool:
-        """Check if the server is likely vLLM (supports chat_template_kwargs)."""
-        url = self.base_url.lower()
-        # llama.cpp / llama-server endpoints don't support vLLM-specific params
-        # vLLM is typically on direct ports (8888, etc.) not behind reverse proxies
-        # Known llama.cpp servers:
-        if "schuyler.ai" in url or "localhost:8080" in url:
-            return False
-        # Known vLLM pattern: direct IP:port
-        if ":8888" in url:
-            return True
-        # Default: assume vLLM-compatible (OpenRouter, Anthropic proxy, etc.)
-        return True
-
     def _build_request(self, model: str, messages: List[Dict], **kwargs) -> Dict:
         body: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
 
@@ -139,9 +125,9 @@ class LLMClient:
             if val is not None:
                 body[key] = val
 
-        # Thinking/reasoning support (vLLM only — llama.cpp rejects chat_template_kwargs)
+        # Thinking/reasoning support (both vLLM and llama.cpp accept chat_template_kwargs)
         enable_thinking = kwargs.get("enable_thinking")
-        if enable_thinking is not None and self._is_vllm_server():
+        if enable_thinking is not None:
             body.setdefault("chat_template_kwargs", {})["enable_thinking"] = bool(enable_thinking)
 
         # Default max_tokens for reasoning models

@@ -86,15 +86,31 @@ class MapGraph:
         return self.exit_failures[room_id][direction]
 
     def prune_invalid_exits(self, room_id: int, min_failures: int = 3) -> int:
+        """Remove failed exits from a room's exit set.
+
+        IMPORTANT: Never deletes verified connections (entries in self.connections).
+        Connections are added only after Z-machine confirms traversal, so they
+        represent ground truth. Some valid connections fail intermittently
+        (e.g., trap doors that require setup, one-way doors). Only the room's
+        advertised exit hints are pruned.
+        """
         failures = self.exit_failures.get(room_id, {})
         pruned = 0
         for direction, count in list(failures.items()):
             if count >= min_failures:
-                if room_id in self.connections and direction in self.connections[room_id]:
-                    del self.connections[room_id][direction]
-                    pruned += 1
+                # Only prune exit hints, NOT verified connections
+                has_connection = (room_id in self.connections
+                                 and direction in self.connections[room_id])
+                if has_connection:
+                    if self.logger:
+                        self.logger.debug(
+                            f"Skipping prune of verified connection: "
+                            f"room {room_id} -> {direction} "
+                            f"({count} failures, but connection exists)")
+                    continue
                 if room_id in self.rooms:
                     self.rooms[room_id].exits.discard(direction)
+                    pruned += 1
         return pruned
 
     def find_path_bfs(self, start_id: int, target_id: int) -> Optional[Tuple[List[str], List[Dict]]]:
@@ -194,3 +210,42 @@ class MapGraph:
 
     def render_confidence_report(self) -> str:
         return f"Map: {len(self.rooms)} rooms, {sum(len(c) for c in self.connections.values())} connections"
+
+    def get_exploration_frontier(self) -> str:
+        """Compute unexplored exits per room for the reasoner.
+
+        An exit is 'unexplored' if it's in the room's exit set (from Z-machine)
+        but has no outgoing connection AND hasn't failed enough to be pruned.
+        Returns a formatted string grouped by exploration priority.
+        """
+        if not self.rooms:
+            return ""
+
+        frontier = []
+        for rid, room in self.rooms.items():
+            connected_dirs = set(self.connections.get(rid, {}).keys())
+            failed_dirs = set(self.exit_failures.get(rid, {}).keys())
+            tried = connected_dirs | failed_dirs
+            unexplored = room.exits - tried
+
+            if unexplored:
+                frontier.append({
+                    "id": rid, "name": room.name,
+                    "unexplored": sorted(unexplored),
+                    "tried": sorted(tried),
+                })
+
+        if not frontier:
+            return ""
+
+        # Sort: most unexplored exits first, then alphabetical
+        frontier.sort(key=lambda x: (-len(x["unexplored"]), x["name"]))
+
+        lines = [f"EXPLORATION FRONTIER ({len(frontier)} rooms with untried exits):"]
+        for r in frontier:
+            lines.append(
+                f"  {r['name']} (L{r['id']}): "
+                f"UNTRIED [{', '.join(r['unexplored'])}]  "
+                f"tried [{', '.join(r['tried'])}]"
+            )
+        return "\n".join(lines)

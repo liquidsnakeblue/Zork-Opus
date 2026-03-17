@@ -300,6 +300,11 @@ class Orchestrator:
 
         # Build context
         info = self.extractor.extract(current_state)
+
+        # Record Z-machine ground-truth exits on the map (persists across episodes)
+        if info and info.exits and self.gs.current_room_id:
+            self.map_mgr.record_valid_exits(self.gs.current_room_id, info.exits)
+
         ctx = self.ctx.build_agent_context(current_state, info, self.map_mgr)
         formatted = self.ctx.format_prompt(ctx, current_state)
 
@@ -605,32 +610,24 @@ class Orchestrator:
 
     def _handle_pathfinder(self, action, reasoning, context) -> Tuple[str, str]:
         stripped = action.strip()
-        if 'pathfinder' in stripped.lower():
-            self.logger.info(f"Pathfinder detection: action={stripped!r} bytes={stripped.encode()!r}")
-        m = re.match(r'^[Pp]athfinder:\s*(\d+)$', stripped)
-        if not m:
-            # Catch malformed pathfinder attempts before they reach Zork
-            if re.match(r'^[Pp]athfinder\s*:', stripped):
-                # Extract number if buried in noise like "Pathfinder: R79" or "Pathfinder: L193"
-                num = re.search(r'\d+', stripped)
-                if num:
-                    m_fixed = re.match(r'^[Pp]athfinder:\s*(?:R|L|room\s*#?\s*)?(\d+)', stripped, re.IGNORECASE)
-                    if m_fixed:
-                        m = m_fixed
-                        self.logger.warning(f"Fixed malformed pathfinder action: '{stripped}' → ID {m.group(1)}")
-                if not m:
-                    # Can't salvage — re-prompt agent with format reminder
-                    self.logger.warning(f"Rejected malformed pathfinder action: '{stripped}'")
-                    pf_ctx = (f"\n=== PATHFINDER FORMAT ERROR ===\n"
-                             f"Your action '{stripped}' is not valid.\n"
-                             f"Correct format: Pathfinder: <number>  (e.g., Pathfinder: 79)\n"
-                             f"Use ONLY the numeric room ID from the map. No room names, no R/L prefix.\n")
-                    agent_result = self.agent.get_action("", context + pf_ctx)
-                    return agent_result["action"], agent_result.get("reasoning", "")
-            else:
-                return action, reasoning
 
-        target_id = int(m.group(1))
+        # GUARD: Any action containing "pathfinder" MUST be intercepted — never reaches Zork
+        if 'pathfinder' not in stripped.lower():
+            return action, reasoning
+
+        self.logger.info(f"Pathfinder intercepted: {stripped!r}")
+
+        # Extract room ID from any format: "Pathfinder: 133", "pathfinder:R79", "pathfinder: L193", etc.
+        num_match = re.search(r'\d+', stripped)
+        if not num_match:
+            self.logger.warning(f"Pathfinder with no room ID: '{stripped}'")
+            pf_ctx = (f"\n=== PATHFINDER FORMAT ERROR ===\n"
+                     f"Your action '{stripped}' has no room ID.\n"
+                     f"Correct format: Pathfinder: <number>  (e.g., Pathfinder: 79)\n")
+            agent_result = self.agent.get_action("", context + pf_ctx)
+            return agent_result["action"], agent_result.get("reasoning", "")
+
+        target_id = int(num_match.group(0))
         room_name = self.map_mgr.game_map.room_names.get(target_id, f"Room#{target_id}")
 
         # Check if this target recently failed — warn the agent immediately
@@ -656,11 +653,26 @@ class Orchestrator:
                      f"PATH FOUND ({len(dirs)} steps):\n{steps}\n"
                      f'>>> THIS TURN: Execute "{dirs[0]}" <<<\n')
             self.pathfinder.start_navigation(target_id, room_name)
+        elif result and result.get("blocked_hop"):
+            bh = result["blocked_hop"]
+            pf_ctx = (
+                f"\n=== PATHFINDER RESULT ===\nTarget: {room_name} (L{target_id})\n"
+                f"PATH BLOCKED: The only known route passes through "
+                f"{bh['room_name']} (L{bh['room_id']}) -> {bh['direction']}, "
+                f"but that connection is currently impassable (e.g. trap door closed, gate locked).\n"
+                f"You cannot reach {room_name} via the mapped route right now.\n"
+                f"SUGGESTED ACTIONS:\n"
+                f"  1. Find a way to open the blocked passage (e.g. open trap door, unlock gate).\n"
+                f"  2. Look for an alternate route — explore unexplored exits that might bypass this block.\n"
+                f"  3. If you know a special action that teleports or bypasses the block "
+                f"(e.g. praying at the Altar), use it.\n"
+                f"  4. Select a DIFFERENT objective with Objective: <id> until this route is unblocked.\n"
+            )
         else:
             reason = result["reason"] if result else "Pathfinder error"
             pf_ctx = (f"\n=== PATHFINDER RESULT ===\nTarget: {room_name}\n"
                      f"NO PATH: {reason}\n"
-                     f"⚠️ Do NOT retry Pathfinder to this room — it will fail again.\n"
+                     f"Do NOT retry Pathfinder to this room — it will fail again.\n"
                      f"ACTION REQUIRED: Explore NEW unexplored exits to discover connections "
                      f"toward your target. Pick a direction you haven't tried.\n")
 

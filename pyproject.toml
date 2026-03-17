@@ -56,30 +56,41 @@ circuit_breaker_recovery_timeout = 300.0
 # ══════════════════════════════════════════════════════════════
 # Sampling Parameters
 # ══════════════════════════════════════════════════════════════
+# Qwen 3.5 27B recommended settings (thinking mode, general tasks)
 [tool.zorkopus.agent_sampling]
 temperature = 1.0
 top_p = 0.95
 top_k = 20
-presence_penalty = 1.5
+min_p = 0.0
 max_tokens = 8192
 enable_thinking_mode = false
 enable_thinking = true
 
+# Qwen 3.5 27B recommended settings (non-thinking mode, general tasks)
 [tool.zorkopus.critic_sampling]
-temperature = 0.1
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+min_p = 0.0
 max_tokens = 8192
 enable_thinking = false
 
+# Qwen 3.5 27B recommended settings (non-thinking mode, general tasks)
 [tool.zorkopus.memory_sampling]
-temperature = 0.3
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+min_p = 0.0
 max_tokens = 8192
 memory_history_window = 1
 enable_thinking = false
 
+# Qwen 3.5 27B recommended settings (non-thinking mode, reasoning tasks)
 [tool.zorkopus.analysis_sampling]
-temperature = 0.3
-top_p = 0.8
+temperature = 1.0
+top_p = 0.95
 top_k = 20
+min_p = 0.0
 max_tokens = 8192
 enable_thinking = true
 
@@ -92,13 +103,21 @@ max_tokens = 32000
 enable_deep_reasoning = true
 enable_thinking = true
 
+# Qwen 3.5 27B recommended settings (non-thinking mode, general tasks)
 [tool.zorkopus.turn_review_sampling]
-temperature = 0.1
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+min_p = 0.0
 max_tokens = 8192
 enable_thinking = false
 
+# Qwen 3.5 27B recommended settings (non-thinking mode, general tasks)
 [tool.zorkopus.pathfinder_sampling]
-temperature = 0.1
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+min_p = 0.0
 max_tokens = 8192
 enable_thinking = false
 
