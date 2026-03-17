@@ -5,6 +5,7 @@ Supports both standard and native-thinking model modes.
 
 import re
 import json
+import time
 from typing import Optional, Dict
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -156,37 +157,53 @@ class ZorkAgent:
                 if on_chunk:
                     on_chunk(r, a)
 
-        try:
-            resp = self.client.chat.completions.create_streaming(
-                model=self.model, messages=messages,
-                temperature=self.temperature, top_p=self.top_p, top_k=self.top_k,
-                min_p=self.min_p, max_tokens=self.max_tokens,
-                presence_penalty=self.presence_penalty,
-                repetition_penalty=self.repetition_penalty,
-                enable_thinking=self.enable_thinking, name="Agent-Streaming",
-                on_chunk=handle_chunk,
-            )
+        # Retry with backoff on connection/streaming errors.
+        # The game pauses here until the LLM responds — no wasted turns on "look".
+        max_retries = 10
+        base_delay = 5.0
+        max_delay = 120.0
 
-            raw = resp.content.strip() if resp.content else ""
-            native_reasoning = resp.reasoning_content
-            if not raw and native_reasoning:
-                raw = native_reasoning
-
-            cleaned = extract_json(raw)
+        for attempt in range(max_retries + 1):
             try:
-                if self.use_native_thinking:
-                    parsed = AgentActionOnly.model_validate_json(cleaned)
-                    return {"action": self._clean(parsed.action), "reasoning": native_reasoning, "raw": raw}
-                else:
-                    parsed = AgentResponse.model_validate_json(cleaned)
-                    return {"action": self._clean(parsed.action), "reasoning": parsed.thinking, "raw": raw}
-            except Exception:
-                return {"action": "look", "reasoning": native_reasoning or "[parse error]", "raw": raw}
+                resp = self.client.chat.completions.create_streaming(
+                    model=self.model, messages=messages,
+                    temperature=self.temperature, top_p=self.top_p, top_k=self.top_k,
+                    min_p=self.min_p, max_tokens=self.max_tokens,
+                    presence_penalty=self.presence_penalty,
+                    repetition_penalty=self.repetition_penalty,
+                    enable_thinking=self.enable_thinking, name="Agent-Streaming",
+                    on_chunk=handle_chunk,
+                )
 
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Agent streaming error: {e}")
-            return {"action": "look", "reasoning": None, "raw": None}
+                raw = resp.content.strip() if resp.content else ""
+                native_reasoning = resp.reasoning_content
+                if not raw and native_reasoning:
+                    raw = native_reasoning
+
+                cleaned = extract_json(raw)
+                try:
+                    if self.use_native_thinking:
+                        parsed = AgentActionOnly.model_validate_json(cleaned)
+                        return {"action": self._clean(parsed.action), "reasoning": native_reasoning, "raw": raw}
+                    else:
+                        parsed = AgentResponse.model_validate_json(cleaned)
+                        return {"action": self._clean(parsed.action), "reasoning": parsed.thinking, "raw": raw}
+                except Exception:
+                    return {"action": "look", "reasoning": native_reasoning or "[parse error]", "raw": raw}
+
+            except Exception as e:
+                if attempt < max_retries:
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    if self.logger:
+                        self.logger.warning(
+                            f"Agent streaming error (attempt {attempt + 1}/{max_retries + 1}), "
+                            f"retrying in {delay:.0f}s: {e}")
+                    time.sleep(delay)
+                else:
+                    if self.logger:
+                        self.logger.error(
+                            f"Agent streaming failed after {max_retries + 1} attempts: {e}")
+                    return {"action": "look", "reasoning": None, "raw": None}
 
     def _build_messages(self, game_state_text: str, relevant_memories: Optional[str]) -> list:
         if "o1" in self.model:
