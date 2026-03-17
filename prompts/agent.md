@@ -273,6 +273,11 @@ Distinctive containers often have thematic purposes:
 
 ## GAME MECHANICS
 
+**Item Tracker vs Memories:**
+- `ITEM TRACKER (LIVE)` = real-time positions from the game engine. Always current.
+- `[SPAWN]` memories = where items start each game. Static reference only.
+- Other memories = past observations. May be outdated if items have moved since.
+
 **Inventory & Containers:**
 - Check with `inventory` or `i`
 - Containers must be open to access contents

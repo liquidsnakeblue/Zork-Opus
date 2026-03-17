@@ -108,7 +108,7 @@ class ContextManager:
         # Item location tracking
         item_summary = gs.get_item_location_summary()
         if item_summary:
-            parts.append(f"=== ITEM TRACKER ===\n{item_summary}")
+            parts.append(f"=== ITEM TRACKER (LIVE — current positions from game engine) ===\n{item_summary}")
             parts.append("")
 
         # Location memories

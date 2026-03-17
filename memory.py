@@ -515,10 +515,11 @@ class SpawnDetector:
     def create_memories(self, items: List[SpawnItem], episode: int, turn: int) -> List[Memory]:
         return [
             Memory(
-                category="DISCOVERY", title=f"{i.name} at spawn", episode=episode,
+                category="SPAWN", title=f"{i.name} — starting location", episode=episode,
                 turns=str(turn), score_change=0,
-                text=f"{i.name} (ID: {i.obj_id}) is present at this location at game start."
-                     + (f" Found on {i.surface_name}." if i.surface_name else ""),
+                text=f"{i.name} starts here at game reset."
+                     + (f" Found on {i.surface_name}." if i.surface_name else "")
+                     + " (Check ITEM TRACKER for current location.)",
                 persistence="core", status=MemoryStatus.ACTIVE,
             )
             for i in items
@@ -597,7 +598,7 @@ class MemoryManager:
             for m in memories:
                 if m.status != MemoryStatus.ACTIVE:
                     continue
-                if m.category not in ("PUZZLE", "DISCOVERY", "SUCCESS", "FAILURE"):
+                if m.category not in ("PUZZLE", "DISCOVERY", "SUCCESS", "FAILURE", "SPAWN"):
                     continue
                 # Score by importance
                 score = 0
@@ -737,7 +738,7 @@ Visit Status: {visit_status}
 ```
 
 ### Implicit Takeability Rule
-If a CORE discovery already notes an item's presence (e.g., "sword at spawn"),
+If a SPAWN memory already notes an item's starting location (e.g., "sword — starting location"),
 do NOT create a separate "X is takeable" memory. Takeability is assumed unless:
 - Taking it grants points (record as SUCCESS with score)
 - Taking it fails or has conditions (record as FAILURE)
@@ -786,6 +787,7 @@ Use PUZZLE category for any interaction that reveals how a puzzle works.
 
 ### Category (REQUIRED for should_remember=true)
 SUCCESS | FAILURE | DISCOVERY | DANGER | NOTE | **PUZZLE**
+(SPAWN is system-generated only — do not use it in synthesis)
 
 ---
 
