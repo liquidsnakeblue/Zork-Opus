@@ -436,6 +436,167 @@
         }
 
         /* ================================================================
+           Section 5b: Trophy Case Bar
+           ================================================================ */
+        .trophy-bar {
+            background: linear-gradient(180deg, rgba(212, 168, 75, 0.06) 0%, var(--bg-secondary) 100%);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+        }
+
+        .trophy-bar.hidden { display: none; }
+
+        .trophy-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .trophy-icon-display {
+            font-size: 20px;
+            filter: drop-shadow(0 0 4px rgba(212, 168, 75, 0.5));
+        }
+
+        .trophy-title {
+            font-family: 'Crimson Pro', Georgia, serif;
+            font-size: var(--text-lg);
+            font-weight: 600;
+            color: var(--accent-gold);
+            white-space: nowrap;
+        }
+
+        .trophy-progress-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .trophy-progress-ring {
+            position: relative;
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+        }
+
+        .trophy-progress-ring svg {
+            transform: rotate(-90deg);
+            width: 38px;
+            height: 38px;
+        }
+
+        .trophy-ring-bg {
+            fill: none;
+            stroke: var(--border-color);
+            stroke-width: 3;
+        }
+
+        .trophy-ring-fill {
+            fill: none;
+            stroke: var(--accent-gold);
+            stroke-width: 3;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s var(--ease-out);
+            filter: drop-shadow(0 0 3px rgba(212, 168, 75, 0.6));
+        }
+
+        .trophy-ring-fill.complete {
+            stroke: var(--accent-green);
+            filter: drop-shadow(0 0 6px rgba(124, 184, 124, 0.8));
+        }
+
+        .trophy-progress-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent-gold);
+        }
+
+        .trophy-progress-text.complete { color: var(--accent-green); }
+
+        .trophy-pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: var(--text-sm);
+            font-weight: 600;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .trophy-pct.complete { color: var(--accent-green); }
+
+        .trophy-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .trophy-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, rgba(212, 168, 75, 0.15) 0%, rgba(212, 168, 75, 0.05) 100%);
+            border: 1px solid rgba(212, 168, 75, 0.3);
+            border-radius: var(--radius-lg);
+            font-size: 12px;
+            color: var(--accent-gold);
+            animation: trophyChipEnter 0.5s var(--ease-out-back) forwards;
+            white-space: nowrap;
+        }
+
+        .trophy-chip-icon {
+            font-size: 12px;
+            filter: drop-shadow(0 0 2px rgba(212, 168, 75, 0.4));
+        }
+
+        .trophy-empty {
+            font-size: 12px;
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        .trophy-bar.all-complete {
+            background: linear-gradient(180deg, rgba(124, 184, 124, 0.08) 0%, var(--bg-secondary) 100%);
+            border-bottom-color: rgba(124, 184, 124, 0.3);
+        }
+
+        .trophy-bar.all-complete .trophy-title { color: var(--accent-green); }
+        .trophy-bar.all-complete .trophy-icon-display {
+            filter: drop-shadow(0 0 6px rgba(124, 184, 124, 0.6));
+            animation: trophyGlow 2s ease-in-out infinite;
+        }
+
+        .trophy-bar.all-complete .trophy-chip {
+            background: linear-gradient(135deg, rgba(124, 184, 124, 0.15) 0%, rgba(124, 184, 124, 0.05) 100%);
+            border-color: rgba(124, 184, 124, 0.3);
+            color: var(--accent-green);
+        }
+
+        @keyframes trophyChipEnter {
+            0% { opacity: 0; transform: scale(0.6) translateY(-4px); }
+            60% { transform: scale(1.08) translateY(0); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        @keyframes trophyGlow {
+            0%, 100% { filter: drop-shadow(0 0 6px rgba(124, 184, 124, 0.6)); }
+            50% { filter: drop-shadow(0 0 12px rgba(124, 184, 124, 0.9)) drop-shadow(0 0 20px rgba(124, 184, 124, 0.4)); }
+        }
+
+        /* ================================================================
            Section 6: Timeline & Cards
            ================================================================ */
         .chat-header {
@@ -2145,6 +2306,27 @@
             </div>
         </div>
 
+        <div id="trophyBar" class="trophy-bar hidden">
+            <div class="trophy-header">
+                <span class="trophy-icon-display">🏆</span>
+                <span class="trophy-title">Trophy Case</span>
+            </div>
+            <div class="trophy-progress-wrap">
+                <div class="trophy-progress-ring">
+                    <svg viewBox="0 0 38 38">
+                        <circle class="trophy-ring-bg" cx="19" cy="19" r="15"/>
+                        <circle class="trophy-ring-fill" id="trophy-ring-fill" cx="19" cy="19" r="15"
+                                stroke-dasharray="94.25" stroke-dashoffset="94.25"/>
+                    </svg>
+                    <div class="trophy-progress-text" id="trophy-progress-text">0/19</div>
+                </div>
+                <span class="trophy-pct" id="trophy-pct">0%</span>
+            </div>
+            <div class="trophy-items" id="trophy-items">
+                <span class="trophy-empty">No treasures yet</span>
+            </div>
+        </div>
+
         <div id="pathfinderStrip" class="pathfinder-strip hidden"></div>
 
         <div class="mobile-tabs" id="mobile-tabs">
@@ -2219,6 +2401,31 @@
         COLLAPSE_DELAY: 1500,
         STALE_MINUTES: 5,
         LOCAL_STORAGE_KEY: 'zorkgpt-cards-width'
+    });
+
+    const TOTAL_TREASURES = 19;
+
+    const TROPHY_ICONS = Object.freeze({
+        'jewel-encrusted egg': '🥚', 'egg': '🥚', 'jeweled egg': '🥚',
+        'clockwork canary': '🐦', 'canary': '🐦',
+        'painting': '🖼️', 'beautiful painting': '🖼️',
+        'platinum bar': '📊', 'bar': '📊',
+        'ivory torch': '🔥', 'torch': '🔥',
+        'gold coffin': '⚱️', 'coffin': '⚱️',
+        'crystal trident': '🔱', 'trident': '🔱',
+        'jade figurine': '🗿', 'figurine': '🗿',
+        'sapphire bracelet': '💍', 'bracelet': '💍',
+        'huge diamond': '💎', 'diamond': '💎',
+        'trunk of jewels': '💰', 'trunk': '💰',
+        'crystal skull': '💀', 'skull': '💀',
+        'jewel-encrusted knife': '🗡️',
+        'silver bar': '🪙', 'bar of silver': '🪙',
+        'brass bauble': '🔔', 'bauble': '🔔',
+        'pot of gold': '🪙', 'pot': '🪙',
+        'scarab': '🪲',
+        'large emerald': '💚', 'emerald': '💚',
+        'gold and diamond pair': '👑',
+        'default': '✨'
     });
 
     const ITEM_ICONS = Object.freeze({
@@ -2392,6 +2599,14 @@
         hasNavigationChanged(prev, curr) {
             if (!prev || !curr) return true;
             return JSON.stringify(prev.navigation) !== JSON.stringify(curr.navigation);
+        },
+
+        hasTrophyCaseChanged(prev, curr) {
+            if (!prev || !curr) return true;
+            const pt = prev.current_state.trophy_case || [];
+            const ct = curr.current_state.trophy_case || [];
+            if (pt.length !== ct.length) return true;
+            return pt.some((item, i) => item !== ct[i]);
         }
     };
 
@@ -2755,6 +2970,66 @@
                 const tip = (obj.text || '') + (obj.completion_condition ? `\n✓ Complete when: ${obj.completion_condition}` : '');
                 return `<div class="obj-chip ${obj.status} ${fadeClass}" data-id="${obj.id}" title="${Utils.escapeHtml(tip)}"><span class="obj-chip-dot"></span><span class="obj-chip-name">${Utils.escapeHtml(obj.name || obj.id)}</span></div>`;
             }).join('');
+        }
+    };
+
+    /* ================================================================
+       Section 25b: Trophy Case Renderer
+       ================================================================ */
+    const TrophyCaseRenderer = {
+        _getTrophyIcon(itemName) {
+            const lower = itemName.toLowerCase();
+            for (const [key, icon] of Object.entries(TROPHY_ICONS)) {
+                if (key === 'default') continue;
+                if (lower.includes(key)) return icon;
+            }
+            return TROPHY_ICONS.default;
+        },
+
+        update() {
+            const state = AppState.polled;
+            if (!state) return;
+            const trophies = state.current_state.trophy_case || [];
+            const bar = document.getElementById('trophyBar');
+            const container = document.getElementById('trophy-items');
+            const ringFill = document.getElementById('trophy-ring-fill');
+            const progressText = document.getElementById('trophy-progress-text');
+            const pctText = document.getElementById('trophy-pct');
+
+            // Always show the bar (even when empty, to show progress toward 0/19)
+            bar.classList.remove('hidden');
+
+            const count = trophies.length;
+            const pct = Math.round((count / TOTAL_TREASURES) * 100);
+            const isComplete = count >= TOTAL_TREASURES;
+
+            // Update progress ring
+            const circumference = 2 * Math.PI * 15; // r=15
+            const offset = circumference - (count / TOTAL_TREASURES) * circumference;
+            ringFill.style.strokeDashoffset = offset;
+            ringFill.classList.toggle('complete', isComplete);
+
+            // Update text
+            progressText.textContent = `${count}/${TOTAL_TREASURES}`;
+            progressText.classList.toggle('complete', isComplete);
+            pctText.textContent = `${pct}%`;
+            pctText.classList.toggle('complete', isComplete);
+
+            // Update bar state
+            bar.classList.toggle('all-complete', isComplete);
+
+            // Render trophy chips
+            if (count === 0) {
+                container.innerHTML = '<span class="trophy-empty">No treasures deposited yet</span>';
+                return;
+            }
+
+            container.innerHTML = trophies.map(item => `
+                <div class="trophy-chip">
+                    <span class="trophy-chip-icon">${this._getTrophyIcon(item)}</span>
+                    ${Utils.escapeHtml(item)}
+                </div>
+            `).join('');
         }
     };
 
@@ -3884,6 +4159,7 @@
             if (DiffEngine.hasHeaderChanged(prev, curr)) HeaderRenderer.update();
             if (DiffEngine.hasInventoryChanged(prev, curr)) InventoryRenderer.update();
             if (DiffEngine.hasObjectivesChanged(prev, curr)) ObjectivesRenderer.update();
+            if (DiffEngine.hasTrophyCaseChanged(prev, curr)) TrophyCaseRenderer.update();
             if (DiffEngine.hasTimelineChanged(prev, curr)) TimelineRenderer.update();
             if (DiffEngine.hasMapChanged(prev, curr)) MapRenderer.update();
             if (DiffEngine.hasNavigationChanged(prev, curr)) PathfinderRenderer.update();

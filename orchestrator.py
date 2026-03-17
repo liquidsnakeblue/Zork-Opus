@@ -625,7 +625,9 @@ class Orchestrator:
                      f"Your action '{stripped}' has no room ID.\n"
                      f"Correct format: Pathfinder: <number>  (e.g., Pathfinder: 79)\n")
             agent_result = self.agent.get_action("", context + pf_ctx)
-            return agent_result["action"], agent_result.get("reasoning", "")
+            a = agent_result["action"]
+            if 'pathfinder' in a.lower(): a = "look"
+            return a, agent_result.get("reasoning", "")
 
         target_id = int(num_match.group(0))
         room_name = self.map_mgr.game_map.room_names.get(target_id, f"Room#{target_id}")
@@ -639,7 +641,9 @@ class Orchestrator:
                      f"2. Select a DIFFERENT objective with Objective: <id>\n"
                      f"3. Look for alternate routes (chimneys, gates, passages)\n")
             agent_result = self.agent.get_action("", context + pf_ctx)
-            return agent_result["action"], agent_result.get("reasoning", "")
+            a = agent_result["action"]
+            if 'pathfinder' in a.lower(): a = "look"
+            return a, agent_result.get("reasoning", "")
 
         self.gs.active_tool = "pathfinder"
         self.gs.active_tool_data = {"target_room_id": target_id, "target_name": room_name}
@@ -681,7 +685,16 @@ class Orchestrator:
         if self.streaming: self.streaming.broadcast_tool_status()
 
         agent_result = self.agent.get_action("", context + pf_ctx)
-        return agent_result["action"], agent_result.get("reasoning", "")
+        final_action = agent_result["action"]
+        final_reasoning = agent_result.get("reasoning", "")
+
+        # Safety: if the re-prompted agent ALSO returns a pathfinder action, strip it
+        # and fall back to "look" rather than letting it leak to Zork
+        if 'pathfinder' in final_action.lower():
+            self.logger.warning(f"Re-prompted agent also returned pathfinder: {final_action!r}, falling back to 'look'")
+            final_action = "look"
+
+        return final_action, final_reasoning
 
     def _handle_objective(self, action, reasoning, context):
         m = re.match(r'^[Oo]bjective:\s*([A-Za-z]\d+)$', action.strip())
@@ -901,6 +914,7 @@ class Orchestrator:
                     "objective_update_turn": self.gs.objective_update_turn,
                     "discovered_objectives": self.gs.discovered_objective_texts,
                     "completed_objectives": self.gs.completed_objectives_list,
+                    "trophy_case": self.gs.trophy_case_contents,
                 },
                 "recent_log": recent_log,
                 "tool_status": {"active": self.gs.active_tool, "data": self.gs.active_tool_data,
