@@ -273,14 +273,14 @@ For each objective, provide:
 - target_location_id: For ACTION objectives, the target location number (e.g., 42 for L42)
 
 Also provide:
-- suggested_approach: A DETAILED paragraph (3-5 sentences) explaining HOW the agent should approach the next series of turns
+- suggested_approach: A CONCISE paragraph (2-3 sentences) explaining how to accomplish the objectives you are creating. ONLY discuss the objectives you are outputting — do not speculate beyond them. The reasoner runs again automatically when these objectives are completed.
 - reasoning: Brief summary of the strategic plan
 
 First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
 ```json
 {{
   "reasoning": "Agent needs equipment. Each objective targets ONE location.",
-  "suggested_approach": "First collect the sword, then explore underground. Deposit treasures in trophy case.",
+  "suggested_approach": "Collect the sword from the Living Room — it is needed to defeat the troll blocking underground access.",
   "new_objectives": [
     {{"category": "action", "name": "Collect Sword", "text": "Take the elvish sword from the Living Room", "completion_condition": "sword is in inventory", "target_location_id": 193}}
   ],
