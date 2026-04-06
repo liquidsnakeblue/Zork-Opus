@@ -416,6 +416,14 @@ class Orchestrator:
             self.gs.last_room_description_turn = self.gs.turn_count
             self.gs.last_room_description_location_id = loc_id_after
 
+        # ── Game over check (BEFORE map update to prevent death→respawn false edges) ──
+        game_over, death_reason = self.jericho.is_game_over(response)
+        if game_over:
+            self.gs.game_over = True
+            if death_reason and "death" in death_reason.lower() and not self.gs.death_counted_this_episode:
+                self.gs.death_count += 1
+                self.gs.death_counted_this_episode = True
+
         # ── Movement detection and map update ──
         moved = loc_id_before != loc_id_after
         self.gs.last_action_moved = moved
@@ -448,14 +456,6 @@ class Orchestrator:
             from map_graph import is_non_movement, DIRECTION_MAP
             if not is_non_movement(action) and action.lower().strip() in DIRECTION_MAP:
                 self.map_mgr.track_failed_action(action, loc_id_before, loc_name_before)
-
-        # ── Game over check ──
-        game_over, death_reason = self.jericho.is_game_over(response)
-        if game_over:
-            self.gs.game_over = True
-            if death_reason and "death" in death_reason.lower() and not self.gs.death_counted_this_episode:
-                self.gs.death_count += 1
-                self.gs.death_counted_this_episode = True
 
         # ── Track deltas for context display ──
         score_delta = score_after - score_before
