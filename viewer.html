@@ -149,11 +149,25 @@
         .header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-subtle);
-            padding: 12px 24px;
+            padding: 8px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .header-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-shrink: 0;
+            width: 100%;
+        }
+
+        .header-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px 10px;
+            flex-wrap: wrap;
         }
 
         .header-left {
@@ -316,8 +330,8 @@
         }
 
         .objectives-label {
-            margin-left: 16px;
-            padding-left: 16px;
+            margin-left: 8px;
+            padding-left: 8px;
             border-left: 1px solid var(--border-subtle);
         }
 
@@ -916,9 +930,9 @@
 
         .thinking-text {
             font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-            font-size: var(--text-base);
+            font-size: 15px;
             font-weight: 400;
-            line-height: 1.7;
+            line-height: 1.8;
             color: var(--theme-gold-text);
             white-space: pre-wrap;
             margin: 0;
@@ -1310,9 +1324,9 @@
 
         .ai-action-text {
             font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-            font-size: var(--text-base);
+            font-size: 15px;
             font-weight: 400;
-            line-height: 1.7;
+            line-height: 1.8;
             color: #96c8e0;
             margin: 0;
         }
@@ -1340,6 +1354,7 @@
             font-weight: 400;
             line-height: 1.8;
             color: #96e0a8;
+            margin: 0;
         }
 
         .outcome.suggested-approach {
@@ -1745,8 +1760,8 @@
 
         .strategy-approach-text {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            line-height: 1.7;
+            font-size: 14px;
+            line-height: 1.8;
             color: var(--text-secondary);
         }
 
@@ -1837,9 +1852,9 @@
         }
 
         .strategy-obj-text {
-            font-size: 12px;
+            font-size: 14px;
             color: var(--text-secondary);
-            line-height: 1.5;
+            line-height: 1.6;
             margin-top: 6px;
         }
 
@@ -1892,43 +1907,7 @@
 
         .pathfinder-half::-webkit-scrollbar { display: none; }
 
-        .nav-divider {
-            width: 1px;
-            background: rgba(100, 200, 255, 0.2);
-            flex-shrink: 0;
-        }
-
-        .strategy-half {
-            flex: 1;
-            padding: 10px 16px;
-            overflow-y: auto;
-            max-height: 120px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            background: linear-gradient(180deg, rgba(168, 123, 219, 0.06) 0%, transparent 100%);
-        }
-
-        .strategy-header {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--accent-purple);
-            flex-shrink: 0;
-        }
-
-        .strategy-text {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            line-height: 1.6;
-            color: var(--text-secondary);
-        }
-
-        .strategy-text.empty {
-            color: var(--text-dim);
-            font-style: italic;
-        }
+        /* nav-divider and strategy-half removed — strategy moved to right panel */
 
         /* Pathfinder Node (room waypoint) */
         .pathfinder-node {
@@ -2522,97 +2501,74 @@
          ================================================================ -->
     <div class="app-container">
         <header class="header">
-            <div class="header-left">
-                <div class="logo">
-                    <img class="logo-icon" src="favicon.png" alt="Zork">
-                    <h1>ZorkGPT</h1>
+            <div class="header-row">
+                <div class="header-left">
+                    <div class="logo">
+                        <img class="logo-icon" src="favicon.png" alt="Zork">
+                        <h1>ZorkGPT</h1>
+                    </div>
                 </div>
-            </div>
 
-            <div class="header-stats">
-                <div class="stat">
-                    <div class="stat-value" id="generation-num">1</div>
-                    <div class="stat-label">Gen</div>
+                <div class="header-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="generation-num">1</div>
+                        <div class="stat-label">Gen</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value gold" id="high-score">0</div>
+                        <div class="stat-label">High Score</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value gold" id="score">--</div>
+                        <div class="stat-label">Score</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="turn-count">--</div>
+                        <div class="stat-label">Turn</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="death-count">0</div>
+                        <div class="stat-label">Deaths</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value gold" id="trophy-stat">0/19</div>
+                        <div class="stat-label">Trophies</div>
+                    </div>
                 </div>
-                <div class="stat">
-                    <div class="stat-value gold" id="high-score">0</div>
-                    <div class="stat-label">High Score</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value gold" id="score">--</div>
-                    <div class="stat-label">Score</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="turn-count">--</div>
-                    <div class="stat-label">Turn</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="death-count">0</div>
-                    <div class="stat-label">Deaths</div>
-                </div>
-            </div>
 
-            <div class="header-right">
-                <div id="streaming-indicator">
-                    <span class="dot"></span>
-                    <span>Streaming</span>
+                <div class="header-right">
+                    <div id="streaming-indicator">
+                        <span class="dot"></span>
+                        <span>Streaming</span>
+                    </div>
+                    <div class="connection-badge">
+                        <div class="connection-dot" id="connection-dot"></div>
+                        <span class="connection-text" id="connection-text">Connecting...</span>
+                    </div>
+                    <button class="fullscreen-btn" id="fullscreen-btn" title="Toggle fullscreen">
+                        <svg class="fullscreen-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                        <svg class="fullscreen-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                        </svg>
+                    </button>
                 </div>
-                <div class="connection-badge">
-                    <div class="connection-dot" id="connection-dot"></div>
-                    <span class="connection-text" id="connection-text">Connecting...</span>
+            </div>
+            <div class="header-bar">
+                <span class="inventory-label">Inv</span>
+                <div class="inventory-items" id="inventory-items">
+                    <span class="inventory-empty">Loading...</span>
                 </div>
-                <button class="fullscreen-btn" id="fullscreen-btn" title="Toggle fullscreen">
-                    <svg class="fullscreen-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                    </svg>
-                    <svg class="fullscreen-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                    </svg>
-                </button>
-            </div>
-        </header>
-
-        <div class="inventory-bar">
-            <span class="inventory-label">Inventory</span>
-            <div class="inventory-items" id="inventory-items">
-                <span class="inventory-empty">Loading...</span>
-            </div>
-            <div class="objectives-area">
-                <span class="objectives-label">Objectives</span>
+                <span class="objectives-label">Obj</span>
                 <div class="objectives-chips" id="objectives-chips">
                     <span class="objectives-empty-chip">Loading...</span>
                 </div>
             </div>
-        </div>
-
-        <div id="trophyBar" class="trophy-bar hidden">
-            <div class="trophy-header">
-                <span class="trophy-icon-display">🏆</span>
-                <span class="trophy-title">Trophy Case</span>
-            </div>
-            <div class="trophy-progress-wrap">
-                <div class="trophy-progress-ring">
-                    <svg viewBox="0 0 38 38">
-                        <circle class="trophy-ring-bg" cx="19" cy="19" r="15"/>
-                        <circle class="trophy-ring-fill" id="trophy-ring-fill" cx="19" cy="19" r="15"
-                                stroke-dasharray="94.25" stroke-dashoffset="94.25"/>
-                    </svg>
-                    <div class="trophy-progress-text" id="trophy-progress-text">0/19</div>
-                </div>
-                <span class="trophy-pct" id="trophy-pct">0%</span>
-            </div>
-            <div class="trophy-items" id="trophy-items">
-                <span class="trophy-empty">No treasures yet</span>
-            </div>
-        </div>
+        </header>
 
         <div id="navigationBar" class="navigation-bar hidden">
             <div id="pathfinderStrip" class="pathfinder-half"></div>
-            <div class="nav-divider"></div>
-            <div id="strategyPanel" class="strategy-half">
-                <div class="strategy-header">🧭 Strategy</div>
-                <div id="strategyText" class="strategy-text">No strategy available</div>
-            </div>
         </div>
 
         <div class="mobile-tabs" id="mobile-tabs">
@@ -2622,15 +2578,9 @@
 
         <main class="main-content">
             <section class="chat-panel" id="cardsPanel" data-mobile-visible="true">
-                <div class="chat-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                    </svg>
-                    <span class="chat-header-title">Adventure Log</span>
-                    <div id="toolStatusBar" class="tool-status-bar hidden">
-                        <span class="status-icon"></span>
-                        <span class="status-text"></span>
-                    </div>
+                <div id="toolStatusBar" class="tool-status-bar hidden" style="position:absolute;top:8px;right:8px;z-index:20;">
+                    <span class="status-icon"></span>
+                    <span class="status-text"></span>
                 </div>
                 <div class="timeline" id="timeline">
                     <div class="loading">
@@ -2644,20 +2594,7 @@
 
             <section class="map-panel" id="mapPanel" data-mobile-visible="false">
                 <div class="strategy-panel-full" id="strategyPanelFull">
-                    <div class="strategy-full-header">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-                        </svg>
-                        <span class="strategy-full-title">Strategy</span>
-                    </div>
                     <div class="strategy-full-content" id="strategyFullContent">
-                        <div id="strategyLocationCard" class="strategy-location-card">
-                            <div class="strategy-location-img no-image">📍</div>
-                            <div class="strategy-location-info">
-                                <div class="strategy-location-name">Loading...</div>
-                                <div class="strategy-location-id"></div>
-                            </div>
-                        </div>
                         <div class="strategy-approach-card">
                             <div class="strategy-approach-label">🧭 Suggested Approach</div>
                             <div id="strategyApproachText" class="strategy-approach-text empty">Waiting for reasoner...</div>
@@ -2671,18 +2608,6 @@
                     </div>
                 </div>
                 <div class="map-section">
-                    <div class="map-header">
-                        <div class="map-header-left">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-                            </svg>
-                            <span class="map-header-title">World Map</span>
-                        </div>
-                        <div class="map-stats">
-                            <div><span id="room-count">--</span> rooms</div>
-                            <div><span id="connection-count">--</span> connections</div>
-                        </div>
-                    </div>
 
                     <div class="map-container">
                         <div class="map-diagram" id="map-diagram">
@@ -3322,59 +3247,20 @@
        Section 25b: Trophy Case Renderer
        ================================================================ */
     const TrophyCaseRenderer = {
-        _getTrophyIcon(itemName) {
-            const lower = itemName.toLowerCase();
-            for (const [key, icon] of Object.entries(TROPHY_ICONS)) {
-                if (key === 'default') continue;
-                if (lower.includes(key)) return icon;
-            }
-            return TROPHY_ICONS.default;
-        },
-
         update() {
             const state = AppState.polled;
             if (!state) return;
             const trophies = state.current_state.trophy_case || [];
-            const bar = document.getElementById('trophyBar');
-            const container = document.getElementById('trophy-items');
-            const ringFill = document.getElementById('trophy-ring-fill');
-            const progressText = document.getElementById('trophy-progress-text');
-            const pctText = document.getElementById('trophy-pct');
-
-            // Always show the bar (even when empty, to show progress toward 0/19)
-            bar.classList.remove('hidden');
-
             const count = trophies.length;
-            const pct = Math.round((count / TOTAL_TREASURES) * 100);
-            const isComplete = count >= TOTAL_TREASURES;
 
-            // Update progress ring
-            const circumference = 2 * Math.PI * 15; // r=15
-            const offset = circumference - (count / TOTAL_TREASURES) * circumference;
-            ringFill.style.strokeDashoffset = offset;
-            ringFill.classList.toggle('complete', isComplete);
-
-            // Update text
-            progressText.textContent = `${count}/${TOTAL_TREASURES}`;
-            progressText.classList.toggle('complete', isComplete);
-            pctText.textContent = `${pct}%`;
-            pctText.classList.toggle('complete', isComplete);
-
-            // Update bar state
-            bar.classList.toggle('all-complete', isComplete);
-
-            // Render trophy chips
-            if (count === 0) {
-                container.innerHTML = '<span class="trophy-empty">No treasures deposited yet</span>';
-                return;
+            const statEl = document.getElementById('trophy-stat');
+            if (statEl) {
+                statEl.textContent = `${count}/${TOTAL_TREASURES}`;
+                if (count >= TOTAL_TREASURES) {
+                    statEl.classList.add('new-record');
+                    setTimeout(() => statEl.classList.remove('new-record'), 3000);
+                }
             }
-
-            container.innerHTML = trophies.map(item => `
-                <div class="trophy-chip">
-                    <span class="trophy-chip-icon">${this._getTrophyIcon(item)}</span>
-                    ${Utils.escapeHtml(item)}
-                </div>
-            `).join('');
         }
     };
 
@@ -3821,8 +3707,10 @@
             if (!state) return;
             const mapData = state.map;
 
-            document.getElementById('room-count').textContent = mapData?.total_rooms || '--';
-            document.getElementById('connection-count').textContent = mapData?.total_connections || '--';
+            const rc = document.getElementById('room-count');
+            const cc = document.getElementById('connection-count');
+            if (rc) rc.textContent = mapData?.total_rooms || '--';
+            if (cc) cc.textContent = mapData?.total_connections || '--';
 
             if (!mapData || !mapData.raw_data) {
                 if (cy) cy.elements().remove();
@@ -3863,53 +3751,20 @@
         function update() {
             const bar = document.getElementById('navigationBar');
             const strip = document.getElementById('pathfinderStrip');
-            const strategyText = document.getElementById('strategyText');
             if (!bar || !strip) return;
 
             const navigation = AppState.polled?.navigation;
             const hasNav = navigation && navigation.navigation_active && navigation.waypoints && navigation.waypoints.length > 0;
 
-            // Update strategy panel (always, independent of pathfinder)
-            const reasonerEvents = AppState.polled?.reasoner_events || [];
-            const latestApproach = _getLatestApproach(reasonerEvents);
-
-            if (strategyText) {
-                if (latestApproach) {
-                    strategyText.textContent = Utils.fixMojibake(latestApproach);
-                    strategyText.classList.remove('empty');
-                } else {
-                    strategyText.textContent = 'Waiting for reasoner...';
-                    strategyText.classList.add('empty');
-                }
-            }
-
-            // Show bar if we have nav OR strategy
-            if (!hasNav && !latestApproach) {
+            // Only show nav bar when actively pathfinding
+            if (!hasNav) {
                 bar.classList.add('hidden');
+                strip.innerHTML = '';
                 _lastNavHash = null;
                 return;
             }
 
             bar.classList.remove('hidden');
-
-            if (!hasNav) {
-                // Show current location when not navigating
-                const locName = AppState.polled?.current_state?.location || 'Unknown';
-                const mapData = AppState.polled?.map;
-                const roomId = mapData?.current_room_id;
-                const imageFile = _roomImageMap && roomId && _roomImageMap[roomId];
-                const imgSrc = imageFile ? `./room_images/${imageFile}` : '';
-                const imgHtml = imgSrc
-                    ? `<img class="pathfinder-node-img" src="${imgSrc}" alt="${Utils.escapeHtml(locName)}" onerror="this.classList.add('pathfinder-no-image');this.outerHTML='<div class=\\'pathfinder-node-img pathfinder-no-image\\'>📍</div>'">`
-                    : '<div class="pathfinder-node-img pathfinder-no-image">📍</div>';
-                strip.innerHTML = `<div class="pathfinder-node current">
-                    <span class="pathfinder-here-marker">▼</span>
-                    ${imgHtml}
-                    <span class="pathfinder-node-name" title="${Utils.escapeHtml(locName)}" style="max-width:none">${Utils.escapeHtml(locName)}</span>
-                </div>`;
-                _lastNavHash = null;
-                return;
-            }
 
             // Diff check — avoid re-rendering pathfinder if nothing changed
             const navHash = `${navigation.current_step}|${navigation.waypoints.length}|${navigation.target_room_id}`;
@@ -4006,32 +3861,11 @@
             if (hash === _lastHash) return;
             _lastHash = hash;
 
-            // Update location card
-            _updateLocation(locName, roomId);
-
             // Update approach
             _updateApproach(reasonerEvents);
 
             // Update objectives
             _updateObjectives(activeObjs);
-        }
-
-        function _updateLocation(locName, roomId) {
-            const card = document.getElementById('strategyLocationCard');
-            if (!card) return;
-
-            const imageFile = _roomImageMap && roomId && _roomImageMap[roomId];
-            const imgHtml = imageFile
-                ? `<img class="strategy-location-img" src="./room_images/${imageFile}" alt="${Utils.escapeHtml(locName)}" onerror="this.outerHTML='<div class=\\'strategy-location-img no-image\\'>📍</div>'">`
-                : '<div class="strategy-location-img no-image">📍</div>';
-
-            card.innerHTML = `
-                ${imgHtml}
-                <div class="strategy-location-info">
-                    <div class="strategy-location-name">${Utils.escapeHtml(locName)}</div>
-                    <div class="strategy-location-id">${roomId ? `L${roomId}` : ''}</div>
-                </div>
-            `;
         }
 
         function _updateApproach(reasonerEvents) {
