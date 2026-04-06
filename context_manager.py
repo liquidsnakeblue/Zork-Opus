@@ -132,6 +132,13 @@ class ContextManager:
             if nav_ctx:
                 parts.append(nav_ctx)
                 parts.append("")
+            elif self.pathfinder.map_manager:
+                # Auto-navigation: compute BFS path for in_progress objective
+                # Uses game_map.find_path_bfs directly (no side effects, no validation overhead)
+                auto_nav = self._auto_navigate(ctx.get('objectives', []))
+                if auto_nav:
+                    parts.append(auto_nav)
+                    parts.append("")
 
         # Objectives
         active_objs = ctx.get('objectives', [])
@@ -170,38 +177,29 @@ class ContextManager:
                 parts.append(f"  T{entry.turn}: {entry.action} → {resp_preview}{wasted}")
             parts.append("")
 
-        # Oscillation detection — warn if agent is bouncing between same rooms
+        # Oscillation detection
         if len(gs.action_history) >= 6:
             recent_locs = [e.location_name for e in gs.action_history[-6:]]
             unique = set(recent_locs)
             if len(unique) <= 2:
-                parts.append(f"🚨 OSCILLATION DETECTED: You have been bouncing between {' and '.join(unique)} "
-                            f"for the last {len(recent_locs)} turns. STOP and try a completely different direction "
-                            f"or approach. Check your map for unexplored exits.")
+                parts.append(f"Note: Recent turns have been between {' and '.join(unique)}.")
                 parts.append("")
 
-        # Maze/similar-room wandering detection
-        # Detect when agent is stuck in rooms with similar base names (e.g., "Maze", "Maze 1", "Maze 2")
+        # Maze detection
         if len(gs.action_history) >= 10:
             recent_locs_10 = [e.location_name for e in gs.action_history[-10:]]
-            # Normalize: strip trailing numbers/spaces to find base name
             import re as _re
             base_names = [_re.sub(r'\s*\d+\s*$', '', loc).strip() for loc in recent_locs_10]
             from collections import Counter as _Counter
             base_counts = _Counter(base_names)
             dominant_base, dominant_count = base_counts.most_common(1)[0]
-            if dominant_count >= 7:  # 7+ of last 10 turns in same-named area
+            if dominant_count >= 7:
                 parts.append(
-                    f"🚨 MAZE WANDERING DETECTED: You have spent {dominant_count} of the last 10 turns "
-                    f"in '{dominant_base}' rooms. You are LOST. Random directions will not help. "
-                    f"STRATEGY: Drop a recognizable item to mark your path. Try mapping systematically "
-                    f"(always go one direction until blocked, then try next). Or use Pathfinder to "
-                    f"navigate to a known room outside the maze. Consider selecting a different "
-                    f"objective with `Objective: <id>` to leave this area entirely.")
+                    f"Note: {dominant_count} of the last 10 turns in '{dominant_base}' area. "
+                    f"Dropping an item to mark your path may help with navigation.")
                 parts.append("")
 
-        # Treasure deposit reminder
-        # Known Zork I treasure keywords (from the game's own scoring table)
+        # Treasure context
         _TREASURE_KEYWORDS = [
             "jewel", "egg", "canary", "bauble", "gold", "coin", "diamond",
             "emerald", "jade", "sapphire", "ruby", "crystal", "trunk",
@@ -216,23 +214,11 @@ class ContextManager:
                 and item not in gs.trophy_case
             ]
             if carried_treasures:
-                # IMMEDIATE: agent is in the Living Room with treasures
                 if gs.current_room_id == 193:
                     parts.append(
-                        f"🏆 YOU ARE IN THE LIVING ROOM WITH TREASURES! "
-                        f"DEPOSIT NOW: {', '.join(carried_treasures)}. "
-                        f"Use 'open trophy case' then 'put <item> in case' for EACH treasure. "
-                        f"Do this BEFORE leaving the room!")
+                        f"You are in the Living Room with treasures: {', '.join(carried_treasures)}. "
+                        f"The trophy case is here.")
                     parts.append("")
-                else:
-                    turns_since_score = gs.turn_count - gs.last_scoring_turn
-                    if turns_since_score >= 10:
-                        parts.append(
-                            f"💎 TREASURE REMINDER: You are carrying potential treasures: "
-                            f"{', '.join(carried_treasures)}. Consider returning to the Living Room "
-                            f"and depositing them in the trophy case to score points. "
-                            f"You haven't scored in {turns_since_score} turns!")
-                        parts.append("")
 
         # Navigation failure message
         if gs.navigation_failure_msg:
@@ -245,6 +231,46 @@ class ContextManager:
             parts.append(f"=== WORLD MAP ===\n```mermaid\n{mermaid}\n```")
 
         return "\n".join(parts)
+
+    def _auto_navigate(self, objectives) -> str:
+        """Compute BFS path for the active in_progress objective and format as navigation guidance."""
+        gs = self.game_state
+        if not gs.current_room_id:
+            return ""
+
+        # Find the in_progress objective with a target location
+        active = next(
+            (o for o in objectives
+             if o.status == "in_progress" and o.target_location_id
+             and o.target_location_id != gs.current_room_id),
+            None,
+        )
+        if not active:
+            return ""
+
+        game_map = self.pathfinder.map_manager.game_map
+        target_id = active.target_location_id
+
+        if target_id not in game_map.rooms:
+            return ""
+
+        result = game_map.find_path_bfs(gs.current_room_id, target_id)
+        if not result:
+            return ""
+
+        dirs, waypoints = result
+        if not dirs:
+            return ""
+
+        target_name = game_map.room_names.get(target_id, f"L{target_id}")
+        steps = " → ".join(dirs)
+        return (
+            f"=== NAVIGATION GUIDANCE ===\n"
+            f"Objective [{active.id}] \"{active.name}\" is at {target_name} (L{target_id}), "
+            f"{len(dirs)} step{'s' if len(dirs) != 1 else ''} away.\n"
+            f"Path: {steps}\n"
+            f">>> NEXT STEP: {dirs[0]} <<<"
+        )
 
     def add_action_to_history(self, action: str, response: str, location_id: int, location_name: str):
         """Add completed action to history."""

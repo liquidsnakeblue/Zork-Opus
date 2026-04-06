@@ -359,10 +359,8 @@ class Orchestrator:
         action = result["action"]
         reasoning = result.get("reasoning", "")
 
-        # Handle special action patterns
-        action, reasoning = self._handle_pathfinder(action, reasoning, formatted)
-        action, reasoning, obj_id, obj_text = self._handle_objective(action, reasoning, formatted)
-        action, reasoning = self._handle_search(action, reasoning, formatted)
+        # Dispatch special actions until we get a plain game command.
+        action, reasoning, obj_id, obj_text = self._resolve_action(action, reasoning, formatted)
 
         # Critic evaluation (if enabled)
         if self.config.enable_critic:
@@ -606,6 +604,29 @@ class Orchestrator:
 
     # ── Handler chain ──
 
+    _SPECIAL_ACTION_RE = re.compile(r'^(pathfinder|objective|search|crawl)\s*:', re.IGNORECASE)
+
+    def _resolve_action(self, action, reasoning, context) -> Tuple[str, str, Optional[str], Optional[str]]:
+        """Route special actions (pathfinder/objective/search) until we get a plain game command."""
+        obj_id, obj_text = None, None
+        for _ in range(5):
+            stripped = action.strip().lower()
+            if 'pathfinder' in stripped:
+                action, reasoning = self._handle_pathfinder(action, reasoning, context)
+            elif re.match(r'^objective:\s*[a-z]\d+$', stripped):
+                action, reasoning, _oid, _otxt = self._handle_objective(action, reasoning, context)
+                if _oid:
+                    obj_id, obj_text = _oid, _otxt
+            elif re.match(r'^(search|crawl)\s*:', stripped):
+                action, reasoning = self._handle_search(action, reasoning, context)
+            else:
+                break  # plain game command
+        # Safety net: if a special action still leaked, don't send it to Zork
+        if self._SPECIAL_ACTION_RE.match(action.strip()):
+            self.logger.warning(f"Special action leaked after dispatch loop: {action!r}, falling back to 'look'")
+            action = "look"
+        return action, reasoning, obj_id, obj_text
+
     def _handle_pathfinder(self, action, reasoning, context) -> Tuple[str, str]:
         stripped = action.strip()
 
@@ -832,18 +853,8 @@ class Orchestrator:
         if not self.config.enable_stuck_warnings: return ""
         stuck = self.gs.turn_count - self._last_score_turn
         if stuck < self.config.stuck_warning_threshold: return ""
-        remaining = self.config.max_turns_stuck - stuck
-        urgency = "🚨 CRITICAL" if remaining <= 5 else "⚠️ WARNING" if remaining <= 10 else "⚠️ STAGNATION"
-        advice = ""
-        if remaining <= 15:
-            advice = ("\nSTRATEGY TO SCORE:\n"
-                     "• If carrying treasures: find ANY route to Living Room trophy case\n"
-                     "• Explore exits you haven't tried — look for chimneys, gates, passages\n"
-                     "• Try 'up' or 'climb' in unusual locations\n"
-                     "• Switch to a completely different area of the map\n"
-                     "• Select a different objective with Objective: <id>\n")
-        return (f"{'='*60}\n{urgency}\nNo progress for {stuck} turns. "
-                f"EPISODE ENDS in {remaining} turns without score increase.{advice}\n{'='*60}")
+        return (f"Note: No score change in {stuck} turns. "
+                f"Consider trying a different area or objective.")
 
     # ── State export ──
 
@@ -902,17 +913,7 @@ class Orchestrator:
                 "reasoner_events": self.gs.reasoner_events,
                 "map": self.map_mgr.get_export_data(),
                 "knowledge_base": self.knowledge.get_export_data(),
-                "navigation": {
-                    "navigation_active": self.pathfinder.is_active,
-                    "target_room": self.pathfinder.nav.target_name if self.pathfinder.nav else None,
-                    "target_room_id": self.pathfinder.nav.target_id if self.pathfinder.nav else None,
-                    "path": self.pathfinder.nav.path if self.pathfinder.nav else None,
-                    "waypoints": self.pathfinder.nav.waypoints if self.pathfinder.nav else None,
-                    "current_step": self.pathfinder.nav.step if self.pathfinder.nav else None,
-                    "total_steps": len(self.pathfinder.nav.path) if self.pathfinder.nav else 0,
-                    "current_direction": self.pathfinder.current_direction() if self.pathfinder.nav else None,
-                    "start_room_id": self.pathfinder.nav.start_id if self.pathfinder.nav else None,
-                },
+                "navigation": self._build_navigation_export(),
                 "performance": {
                     "memory_entries": len(self.gs.memory_log_history),
                 },
@@ -932,6 +933,63 @@ class Orchestrator:
                 )
         except Exception as e:
             self.logger.error(f"State export failed: {e}")
+
+    def _build_navigation_export(self) -> Dict:
+        """Build navigation data for the viewer. Uses explicit NavState if active,
+        otherwise falls back to auto-computed BFS path for the in_progress objective."""
+        # Explicit pathfinder navigation takes priority
+        if self.pathfinder.is_active:
+            nav = self.pathfinder.nav
+            return {
+                "navigation_active": True,
+                "target_room": nav.target_name,
+                "target_room_id": nav.target_id,
+                "path": nav.path,
+                "waypoints": nav.waypoints,
+                "current_step": nav.step,
+                "total_steps": len(nav.path),
+                "current_direction": self.pathfinder.current_direction(),
+                "start_room_id": nav.start_id,
+                "source": "pathfinder",
+            }
+
+        # Auto-navigation: BFS path for in_progress objective with target_location_id
+        active_obj = next(
+            (o for o in self.gs.objectives
+             if o.status == "in_progress" and o.target_location_id
+             and o.target_location_id != self.gs.current_room_id),
+            None,
+        )
+        if active_obj:
+            game_map = self.map_mgr.game_map
+            target_id = active_obj.target_location_id
+            if target_id in game_map.rooms:
+                result = game_map.find_path_bfs(self.gs.current_room_id, target_id)
+                if result:
+                    dirs, waypoints = result
+                    if dirs:
+                        target_name = game_map.room_names.get(target_id, f"L{target_id}")
+                        return {
+                            "navigation_active": True,
+                            "target_room": target_name,
+                            "target_room_id": target_id,
+                            "path": dirs,
+                            "waypoints": waypoints,
+                            "current_step": 0,
+                            "total_steps": len(dirs),
+                            "current_direction": dirs[0],
+                            "start_room_id": self.gs.current_room_id,
+                            "source": "auto",
+                        }
+
+        # No navigation
+        return {
+            "navigation_active": False,
+            "target_room": None, "target_room_id": None,
+            "path": None, "waypoints": None,
+            "current_step": None, "total_steps": 0,
+            "current_direction": None, "start_room_id": None,
+        }
 
     def _build_recent_log(self) -> List[Dict]:
         log = []
