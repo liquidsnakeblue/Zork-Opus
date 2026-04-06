@@ -216,6 +216,17 @@ class ObjectiveManager:
 
         prompt = f"""You are a strategic advisor for a text adventure game agent playing Zork. Analyze the game state and output STRUCTURED objectives as JSON. Objectives should be well thought out and reasoned with a focus on high-level goals and milestones that would help the agent beat the game. The game is won when all valuable treasures are in the trophy case.
 
+=== SYSTEM ARCHITECTURE (what you DON'T need to plan for) ===
+The agent has automated systems that handle navigation and mapping. Your job is STRATEGY, not logistics.
+
+**Automatic Mapping**: Every time the agent moves between rooms, the map system records the connection using Z-machine ground truth. Room exits are detected automatically. The map grows deterministically as the agent explores — you do NOT need to create objectives like "map the area" or "discover connections."
+
+**Automatic Navigation**: When the agent has an in_progress objective with a target_location_id, the system automatically computes and displays the shortest path (BFS). The agent sees step-by-step directions in its context. You do NOT need to include routes, paths, or navigation instructions in objectives — just set the target_location_id and the system handles the rest.
+
+**Exploration Frontier**: The map tracks which room exits have been tried vs untried. This data is shown above. Use it to identify where NEW discoveries are most likely.
+
+Your role: decide WHAT the agent should do and WHERE, not HOW to get there.
+
 {context}
 
 === YOUR TASK ===
@@ -248,7 +259,7 @@ There are TWO types of objectives:
 - **ONE LOCATION PER OBJECTIVE (MANDATORY)**: Each objective MUST target exactly ONE location. Multi-location objectives break pathfinder navigation. Split multi-location tasks into separate objectives.
   * BAD: "Collect sword from Living Room, rope from Attic, and sack from Kitchen"
   * GOOD: "Collect Sword" at L193, "Collect Rope" at L201, "Collect Sack" at L203
-- **NEVER include navigation paths** - The agent has a pathfinder tool. Only specify the DESTINATION, NOT the route.
+- **NEVER include navigation paths in objectives or suggested_approach** — navigation is automatic. Only specify the DESTINATION (target_location_id), not the route.
 - **ALWAYS include target_location_id** for ACTION objectives
 
 === OUTPUT FORMAT ===
