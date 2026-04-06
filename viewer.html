@@ -2452,17 +2452,24 @@
             // Repair UTF-8 bytes that were misinterpreted as Latin-1/Windows-1252.
             // Detects valid UTF-8 multi-byte patterns stored as individual char codes
             // and re-decodes them to the correct Unicode character.
+            // 4-byte sequences (U+10000..U+10FFFF): covers all emoji (🚨, 🧭, 🎯, etc.)
+            return text.replace(/[\u00f0-\u00f4][\u0080-\u00bf][\u0080-\u00bf][\u0080-\u00bf]/g, (m) => {
+                const cp = ((m.charCodeAt(0) & 0x07) << 18) |
+                           ((m.charCodeAt(1) & 0x3f) << 12) |
+                           ((m.charCodeAt(2) & 0x3f) << 6) |
+                            (m.charCodeAt(3) & 0x3f);
+                return String.fromCodePoint(cp);
             // 3-byte sequences (U+0800..U+FFFF): covers →, —, ', ", etc.
-            return text.replace(/[\u00e0-\u00ef][\u0080-\u00bf][\u0080-\u00bf]/g, (m) => {
+            }).replace(/[\u00e0-\u00ef][\u0080-\u00bf][\u0080-\u00bf]/g, (m) => {
                 const cp = ((m.charCodeAt(0) & 0x0f) << 12) |
                            ((m.charCodeAt(1) & 0x3f) << 6) |
                             (m.charCodeAt(2) & 0x3f);
-                return String.fromCharCode(cp);
+                return String.fromCodePoint(cp);
             // 2-byte sequences (U+0080..U+07FF): covers ©, ®, ñ, etc.
             }).replace(/[\u00c0-\u00df][\u0080-\u00bf]/g, (m) => {
                 const cp = ((m.charCodeAt(0) & 0x1f) << 6) |
                             (m.charCodeAt(1) & 0x3f);
-                return String.fromCharCode(cp);
+                return String.fromCodePoint(cp);
             });
         },
 
