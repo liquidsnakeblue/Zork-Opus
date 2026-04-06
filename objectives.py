@@ -223,6 +223,8 @@ The agent has automated systems that handle navigation and mapping. Your job is 
 
 **Automatic Navigation**: When the agent has an in_progress objective with a target_location_id, the system automatically computes and displays the shortest path (BFS). The agent sees step-by-step directions in its context. You do NOT need to include routes, paths, or navigation instructions in objectives — just set the target_location_id and the system handles the rest.
 
+**Navigation Limitations**: The pathfinder can ONLY route through rooms the agent has already visited, using connections it has already traversed. The map is a directed graph — if the agent walked north from A to B, it knows A→north→B, but does NOT know B→south→A until it actually walks south from B. Zork's world is treacherous: doors lock behind you, trap doors close, one-way passages exist. A path that worked before may be blocked now. When the pathfinder fails, the agent must explore manually to discover new routes. Keep this in mind when setting target_location_id — if the agent has never been to a room from its current area, the pathfinder won't help.
+
 **Exploration Frontier**: The map tracks which room exits have been tried vs untried. This data is shown above. Use it to identify where NEW discoveries are most likely.
 
 Your role: decide WHAT the agent should do and WHERE, not HOW to get there.
