@@ -2447,8 +2447,28 @@
        Section 31: Utilities
        ================================================================ */
     const Utils = {
+        fixMojibake(text) {
+            if (!text) return text;
+            // Repair UTF-8 bytes that were misinterpreted as Latin-1/Windows-1252.
+            // Detects valid UTF-8 multi-byte patterns stored as individual char codes
+            // and re-decodes them to the correct Unicode character.
+            // 3-byte sequences (U+0800..U+FFFF): covers →, —, ', ", etc.
+            return text.replace(/[\u00e0-\u00ef][\u0080-\u00bf][\u0080-\u00bf]/g, (m) => {
+                const cp = ((m.charCodeAt(0) & 0x0f) << 12) |
+                           ((m.charCodeAt(1) & 0x3f) << 6) |
+                            (m.charCodeAt(2) & 0x3f);
+                return String.fromCharCode(cp);
+            // 2-byte sequences (U+0080..U+07FF): covers ©, ®, ñ, etc.
+            }).replace(/[\u00c0-\u00df][\u0080-\u00bf]/g, (m) => {
+                const cp = ((m.charCodeAt(0) & 0x1f) << 6) |
+                            (m.charCodeAt(1) & 0x3f);
+                return String.fromCharCode(cp);
+            });
+        },
+
         escapeHtml(text) {
             if (!text) return '';
+            text = this.fixMojibake(text);
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -2840,7 +2860,7 @@
             const section = document.querySelector(`[data-stream-id="${streamId}"]`);
             if (!section) return;
             const textEl = section.querySelector('.thinking-text');
-            if (textEl) textEl.textContent = content;
+            if (textEl) textEl.textContent = Utils.fixMojibake(content);
             const wordCount = (content || '').trim().split(/\s+/).length;
             const wcEl = section.querySelector('.thinking-word-count');
             if (wcEl) wcEl.textContent = `${wordCount} words`;
@@ -2856,7 +2876,7 @@
             section.classList.remove('streaming');
             if (finalContent) {
                 const textEl = section.querySelector('.thinking-text');
-                if (textEl) textEl.textContent = finalContent;
+                if (textEl) textEl.textContent = Utils.fixMojibake(finalContent);
                 const wordCount = finalContent.trim().split(/\s+/).length;
                 const wcEl = section.querySelector('.thinking-word-count');
                 if (wcEl) wcEl.textContent = `${wordCount} words`;
