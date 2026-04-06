@@ -3629,7 +3629,20 @@
             bar.classList.remove('hidden');
 
             if (!hasNav) {
-                strip.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;color:var(--text-dim);font-size:12px;font-style:italic;">No active route</div>';
+                // Show current location when not navigating
+                const locName = AppState.polled?.current_state?.location || 'Unknown';
+                const mapData = AppState.polled?.map;
+                const roomId = mapData?.current_room_id;
+                const imageFile = _roomImageMap && roomId && _roomImageMap[roomId];
+                const imgSrc = imageFile ? `./room_images/${imageFile}` : '';
+                const imgHtml = imgSrc
+                    ? `<img class="pathfinder-node-img" src="${imgSrc}" alt="${Utils.escapeHtml(locName)}" onerror="this.classList.add('pathfinder-no-image');this.outerHTML='<div class=\\'pathfinder-node-img pathfinder-no-image\\'>📍</div>'">`
+                    : '<div class="pathfinder-node-img pathfinder-no-image">📍</div>';
+                strip.innerHTML = `<div class="pathfinder-node current">
+                    <span class="pathfinder-here-marker">▼</span>
+                    ${imgHtml}
+                    <span class="pathfinder-node-name" title="${Utils.escapeHtml(locName)}" style="max-width:none">${Utils.escapeHtml(locName)}</span>
+                </div>`;
                 _lastNavHash = null;
                 return;
             }
