@@ -1630,26 +1630,70 @@
         .map-control-btn.fit-btn { font-size: 12px; }
 
         /* ================================================================
-           Section 12: Pathfinder Route Strip
+           Section 12: Navigation Bar (Pathfinder + Strategy)
            ================================================================ */
-        .pathfinder-strip {
+        .navigation-bar {
             display: flex;
-            align-items: center;
-            gap: 0;
-            padding: 14px 24px;
+            align-items: stretch;
             background: linear-gradient(180deg, rgba(100, 200, 255, 0.08) 0%, rgba(100, 200, 255, 0.02) 100%);
             border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        .navigation-bar.hidden { display: none; }
+
+        .pathfinder-half {
+            display: flex;
+            align-items: center;
+            justify-content: space-evenly;
+            flex: 1;
+            padding: 14px 16px;
             overflow-x: auto;
             overflow-y: hidden;
-            flex-shrink: 0;
             scrollbar-width: none;
             -ms-overflow-style: none;
             scroll-behavior: smooth;
         }
 
-        .pathfinder-strip::-webkit-scrollbar { display: none; }
+        .pathfinder-half::-webkit-scrollbar { display: none; }
 
-        .pathfinder-strip.hidden { display: none; }
+        .nav-divider {
+            width: 1px;
+            background: rgba(100, 200, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        .strategy-half {
+            flex: 1;
+            padding: 10px 16px;
+            overflow-y: auto;
+            max-height: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: linear-gradient(180deg, rgba(168, 123, 219, 0.06) 0%, transparent 100%);
+        }
+
+        .strategy-header {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-purple);
+            flex-shrink: 0;
+        }
+
+        .strategy-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .strategy-text.empty {
+            color: var(--text-dim);
+            font-style: italic;
+        }
 
         /* Pathfinder Node (room waypoint) */
         .pathfinder-node {
@@ -2327,7 +2371,14 @@
             </div>
         </div>
 
-        <div id="pathfinderStrip" class="pathfinder-strip hidden"></div>
+        <div id="navigationBar" class="navigation-bar hidden">
+            <div id="pathfinderStrip" class="pathfinder-half"></div>
+            <div class="nav-divider"></div>
+            <div id="strategyPanel" class="strategy-half">
+                <div class="strategy-header">🧭 Strategy</div>
+                <div id="strategyText" class="strategy-text">No strategy available</div>
+            </div>
+        </div>
 
         <div class="mobile-tabs" id="mobile-tabs">
             <button class="mobile-tab active" data-tab="chat">Adventure Log</button>
@@ -2625,7 +2676,10 @@
 
         hasNavigationChanged(prev, curr) {
             if (!prev || !curr) return true;
-            return JSON.stringify(prev.navigation) !== JSON.stringify(curr.navigation);
+            if (JSON.stringify(prev.navigation) !== JSON.stringify(curr.navigation)) return true;
+            // Also trigger on reasoner event changes (strategy panel)
+            if ((prev.reasoner_events?.length || 0) !== (curr.reasoner_events?.length || 0)) return true;
+            return false;
         },
 
         hasTrophyCaseChanged(prev, curr) {
@@ -3543,22 +3597,48 @@
         function setRoomImageMap(map) { _roomImageMap = map; }
 
         function update() {
+            const bar = document.getElementById('navigationBar');
             const strip = document.getElementById('pathfinderStrip');
-            if (!strip) return;
-            const navigation = AppState.polled?.navigation;
+            const strategyText = document.getElementById('strategyText');
+            if (!bar || !strip) return;
 
-            if (!navigation || !navigation.navigation_active || !navigation.waypoints || navigation.waypoints.length === 0) {
-                strip.classList.add('hidden');
+            const navigation = AppState.polled?.navigation;
+            const hasNav = navigation && navigation.navigation_active && navigation.waypoints && navigation.waypoints.length > 0;
+
+            // Update strategy panel (always, independent of pathfinder)
+            const reasonerEvents = AppState.polled?.reasoner_events || [];
+            const latestApproach = _getLatestApproach(reasonerEvents);
+
+            if (strategyText) {
+                if (latestApproach) {
+                    strategyText.textContent = Utils.fixMojibake(latestApproach);
+                    strategyText.classList.remove('empty');
+                } else {
+                    strategyText.textContent = 'Waiting for reasoner...';
+                    strategyText.classList.add('empty');
+                }
+            }
+
+            // Show bar if we have nav OR strategy
+            if (!hasNav && !latestApproach) {
+                bar.classList.add('hidden');
                 _lastNavHash = null;
                 return;
             }
 
-            // Diff check — avoid re-rendering if nothing changed
+            bar.classList.remove('hidden');
+
+            if (!hasNav) {
+                strip.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;color:var(--text-dim);font-size:12px;font-style:italic;">No active route</div>';
+                _lastNavHash = null;
+                return;
+            }
+
+            // Diff check — avoid re-rendering pathfinder if nothing changed
             const navHash = `${navigation.current_step}|${navigation.waypoints.length}|${navigation.target_room_id}`;
             if (navHash === _lastNavHash) return;
             _lastNavHash = navHash;
 
-            strip.classList.remove('hidden');
             const waypoints = navigation.waypoints;
             const currentStep = navigation.current_step || 0;
 
@@ -3612,6 +3692,14 @@
                     currentNode.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
                 }, 50);
             }
+        }
+
+        function _getLatestApproach(events) {
+            // Walk backwards through reasoner events to find the most recent suggested_approach
+            for (let i = events.length - 1; i >= 0; i--) {
+                if (events[i].suggested_approach) return events[i].suggested_approach;
+            }
+            return null;
         }
 
         return { update, setRoomImageMap };
