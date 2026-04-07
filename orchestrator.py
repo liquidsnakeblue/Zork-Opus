@@ -107,7 +107,6 @@ class Orchestrator:
         self.ctx = ContextManager(self.config, self.gs, self.logger)
         self.memory = MemoryManager(self.config, self.gs, self.llm, self.logger, self.streaming)
         self.spawn_detector = SpawnDetector(self.logger)
-        self.walkthrough = WalkthroughManager(self.config, self.gs, self.logger)
         self.pathfinder = Pathfinder(self.config, self.gs, self.map_mgr, self.logger)
 
         # Web search
@@ -139,6 +138,10 @@ class Orchestrator:
             )
         else:
             self.reasoner_llm = self.llm
+
+        # Walkthrough uses the same LLM client as the reasoner
+        self.walkthrough = WalkthroughManager(
+            self.config, self.gs, self.logger, llm_client=self.reasoner_llm)
 
         # Objectives
         self.objectives = ObjectiveManager(

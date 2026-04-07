@@ -14,7 +14,8 @@ from llm_client import LLMClient
 
 class WalkthroughManager:
     def __init__(self, config: Config, game_state: GameState, logger=None,
-                 walkthrough_path: str = None, memories_path: str = None):
+                 walkthrough_path: str = None, memories_path: str = None,
+                 llm_client: "LLMClient | None" = None):
         self.config = config
         self.gs = game_state
         self.logger = logger
@@ -24,7 +25,8 @@ class WalkthroughManager:
         self.walkthrough_path = Path(walkthrough_path) if walkthrough_path else project_root / "Zork Walkthrough.md"
         self.memories_path = Path(memories_path) if memories_path else workdir / config.memory_file
 
-        self.client = LLMClient(
+        # Use the shared reasoner LLM client if provided, otherwise create one
+        self.client = llm_client or LLMClient(
             config=config, base_url=config.base_url_for("reasoner"),
             api_key=config.api_key_for("reasoner"), logger=logger,
         )
