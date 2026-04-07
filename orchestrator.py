@@ -502,14 +502,49 @@ class Orchestrator:
             episode_num = 1
             digits = re.findall(r'\d+', str(self.gs.episode_id))
             if digits: episode_num = int(digits[0])
+
+            # Detect theft: items lost when the action wasn't a drop/put/give
+            action_lower = action.lower().strip()
+            is_deliberate_drop = any(kw in action_lower for kw in ["drop", "put", "throw", "give", "place", "insert"])
+            thief_indicators = ["abstracted", "seedy", "lean and hungry", "thief", "stolen", "quietly"]
+            response_lower = response.lower() if response else ""
+            is_theft = not is_deliberate_drop and any(ind in response_lower for ind in thief_indicators)
+
             for item in items_dropped:
-                drop_mem = Memory(
-                    category="NOTE", title=f"Dropped {item} here",
-                    episode=episode_num, turns=str(self.gs.turn_count), score_change=0,
-                    text=f"Agent dropped {item} at this location for later retrieval.",
-                    persistence="ephemeral", status=MemoryStatus.ACTIVE,
-                )
-                self.memory.add_memory(loc_id_before, loc_name_before, drop_mem)
+                if is_theft:
+                    # Record theft event for reasoner and context
+                    self.gs.theft_events.append({
+                        "item": item, "turn": self.gs.turn_count,
+                        "location": loc_name_before, "location_id": loc_id_before,
+                    })
+                    theft_mem = Memory(
+                        category="DANGER", title=f"Thief stole {item}!",
+                        episode=episode_num, turns=str(self.gs.turn_count), score_change=0,
+                        text=f"The Thief stole {item} from inventory while passing through this location. "
+                             f"Stolen items end up in the Thief's Treasure Room. "
+                             f"The agent must find and defeat the Thief to recover them.",
+                        persistence="permanent", status=MemoryStatus.ACTIVE,
+                    )
+                    self.memory.add_memory(loc_id_before, loc_name_before, theft_mem)
+                    self.logger.warning(f"THEFT DETECTED: {item} stolen at {loc_name_before} (T{self.gs.turn_count})")
+                elif not is_deliberate_drop:
+                    # Item lost for unknown reasons (not a drop, not clearly theft)
+                    lost_mem = Memory(
+                        category="NOTE", title=f"Lost {item} here (unknown cause)",
+                        episode=episode_num, turns=str(self.gs.turn_count), score_change=0,
+                        text=f"Agent lost {item} at this location. Cause unknown — "
+                             f"was not a deliberate drop. May have been stolen or lost to game event.",
+                        persistence="ephemeral", status=MemoryStatus.ACTIVE,
+                    )
+                    self.memory.add_memory(loc_id_before, loc_name_before, lost_mem)
+                else:
+                    drop_mem = Memory(
+                        category="NOTE", title=f"Dropped {item} here",
+                        episode=episode_num, turns=str(self.gs.turn_count), score_change=0,
+                        text=f"Agent dropped {item} at this location for later retrieval.",
+                        persistence="ephemeral", status=MemoryStatus.ACTIVE,
+                    )
+                    self.memory.add_memory(loc_id_before, loc_name_before, drop_mem)
 
         # ── Spawn item detection (runs every location, not just first visit) ──
         if loc_id_after:

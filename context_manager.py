@@ -75,7 +75,16 @@ class ContextManager:
         if gs.last_items_gained:
             parts.append(f"  📦 Acquired: {', '.join(gs.last_items_gained)}")
         if gs.last_items_lost:
-            parts.append(f"  ⚠️ Lost: {', '.join(gs.last_items_lost)}")
+            # Check if any lost items were theft (recorded this turn)
+            stolen_this_turn = {e["item"] for e in gs.theft_events if e["turn"] == gs.turn_count}
+            stolen = [i for i in gs.last_items_lost if i in stolen_this_turn]
+            dropped = [i for i in gs.last_items_lost if i not in stolen_this_turn]
+            if stolen:
+                parts.append(f"  🚨 STOLEN BY THIEF: {', '.join(stolen)} — "
+                             f"The Thief took these from you! They are NOT on the ground. "
+                             f"They are in the Thief's possession/Treasure Room.")
+            if dropped:
+                parts.append(f"  ⚠️ Lost: {', '.join(dropped)}")
 
         # Exits
         exits = ctx.get('exits', [])

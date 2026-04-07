@@ -117,6 +117,9 @@ class GameState:
     # Trophy case tracking (persists across episodes, like death_count)
     trophy_case: Set[str] = field(default_factory=set)
 
+    # Theft tracking: list of {item, turn, location, location_id}
+    theft_events: List[Dict[str, Any]] = field(default_factory=list)
+
     # Session-persistent
     death_count: int = 0
     death_counted_this_episode: bool = False
@@ -171,6 +174,7 @@ class GameState:
         self.pending_timestamp = None
         self.death_counted_this_episode = False
         self.item_locations.clear()
+        self.theft_events.clear()
 
     # ── Item tracking ──
 

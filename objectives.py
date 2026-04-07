@@ -114,6 +114,15 @@ class ObjectiveManager:
             deposited = sorted(self.gs.trophy_case)
             parts.append(f"Trophy case ({len(deposited)} deposited): {', '.join(deposited)}")
 
+        # Theft awareness — alert reasoner about stolen items
+        if self.gs.theft_events:
+            parts.append("\n🚨 THEFT ALERT — Items stolen by the Thief:")
+            for evt in self.gs.theft_events:
+                parts.append(f"  • {evt['item']} stolen at {evt['location']} (T{evt['turn']})")
+            parts.append("These items are in the Thief's possession or his Treasure Room. "
+                         "The agent must find and defeat the Thief to recover them. "
+                         "Do NOT create objectives to search rooms where the items were lost — they are NOT there.")
+
         # Score stagnation awareness
         turns_since_score = self.gs.turn_count - self.gs.last_scoring_turn
         if turns_since_score > 15:
