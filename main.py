@@ -43,6 +43,8 @@ PRESETS = {
           "url": "https://openrouter.ai/api/v1", "model": "qwen/qwen3.6-plus:free"},
     "10": {"name": "Gemma 4 31B IT (local vLLM)",
            "url": "http://192.168.4.245:30002/v1", "model": "unsloth/gemma-4-31b-it"},
+    "11": {"name": "Qwen 3.5 27B DFlash (5090)",
+           "url": "http://192.168.4.245:8888/v1", "model": "/root/models/Qwen3.5-27B-AWQ-4bit"},
 }
 
 GAME_FILES = [
