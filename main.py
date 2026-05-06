@@ -21,8 +21,24 @@ from session import SessionTracker
 from orchestrator import Orchestrator
 
 
-# Model presets
-PRESETS = {
+import json
+import time
+import argparse
+import signal
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+from session import SessionTracker
+from orchestrator import Orchestrator
+
+
+# ── Endpoint management ──
+
+ENDPOINTS_FILE = Path("endpoints.json")
+
+# Embedded defaults (used if endpoints.json is missing)
+_DEFAULT_PRESETS = {
     "1": {"name": "Claude Opus 4.6",
           "url": "http://192.168.4.245:8317/v1", "model": "claude-opus-4-6"},
     "2": {"name": "Claude Sonnet 4.6",
@@ -45,7 +61,102 @@ PRESETS = {
            "url": "http://192.168.4.245:30002/v1", "model": "unsloth/gemma-4-31b-it"},
     "11": {"name": "Qwen 3.5 27B DFlash (5090)",
            "url": "http://192.168.4.245:8888/v1", "model": "/root/models/Qwen3.5-27B-AWQ-4bit"},
+    "12": {"name": "Qwen 3.6 27B (LM Studio)",
+           "url": "http://192.168.4.245:30002/v1", "model": "qwen3.6-27b"},
 }
+
+
+def _load_endpoints() -> dict:
+    """Load presets from endpoints.json, falling back to embedded defaults."""
+    if ENDPOINTS_FILE.exists():
+        try:
+            with open(ENDPOINTS_FILE) as f:
+                data = json.load(f)
+            presets = data.get("presets", {})
+            if presets:
+                return presets
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"⚠️  endpoints.json is malformed ({e}), using defaults")
+    # Write defaults if file doesn't exist
+    if not ENDPOINTS_FILE.exists():
+        _save_endpoints(_DEFAULT_PRESETS)
+        print(f"✨ Created {ENDPOINTS_FILE} with default presets")
+    return _DEFAULT_PRESETS.copy()
+
+
+def _save_endpoints(presets: dict) -> None:
+    """Save presets to endpoints.json."""
+    with open(ENDPOINTS_FILE, "w") as f:
+        json.dump({"presets": presets}, f, indent=4)
+
+
+def _next_key(presets: dict) -> str:
+    """Return the next numeric key."""
+    return str(max((int(k) for k in presets if k.isdigit()), default=0) + 1)
+
+
+def _compact_keys(presets: dict) -> dict:
+    """Re-number keys 1..N preserving insertion order."""
+    return {str(i + 1): v for i, v in enumerate(presets.values())}
+
+
+def _validate_url(url: str) -> bool:
+    """Basic URL format check."""
+    return url.startswith("http://") or url.startswith("https://")
+
+
+def _add_endpoint(presets: dict) -> None:
+    print("\n── Add Endpoint ──")
+    name = input("  Name: ").strip()
+    if not name:
+        print("  ⚠️  Name required")
+        return
+    url = input("  URL (e.g., http://host:port/v1): ").strip()
+    if not _validate_url(url):
+        print("  ⚠️  URL must start with http:// or https://")
+        return
+    model = input("  Model: ").strip()
+    if not model:
+        print("  ⚠️  Model required")
+        return
+    key = _next_key(presets)
+    presets[key] = {"name": name, "url": url, "model": model}
+    _save_endpoints(presets)
+    print(f"  ✅ Added as [{key}] {name}")
+
+
+def _delete_endpoint(presets: dict) -> None:
+    if not presets:
+        print("  No endpoints to delete.")
+        return
+    keys = "/".join(presets.keys())
+    key = input(f"  Key to delete [{keys}]: ").strip()
+    if key not in presets:
+        print(f"  ⚠️  '{key}' not found")
+        return
+    removed = presets.pop(key)
+    presets = _compact_keys(presets)
+    _save_endpoints(presets)
+    print(f"  ✅ Removed '{removed['name']}'")
+
+
+def _rename_endpoint(presets: dict) -> None:
+    if not presets:
+        print("  No endpoints to rename.")
+        return
+    keys = "/".join(presets.keys())
+    key = input(f"  Key to rename [{keys}]: ").strip()
+    if key not in presets:
+        print(f"  ⚠️  '{key}' not found")
+        return
+    old_name = presets[key]["name"]
+    new_name = input(f"  New name (current: {old_name}): ").strip()
+    if not new_name:
+        print("  ⚠️  Name required")
+        return
+    presets[key]["name"] = new_name
+    _save_endpoints(presets)
+    print(f"  ✅ Renamed to '{new_name}'")
 
 GAME_FILES = [
     "game_files/Memories.md", "game_files/knowledgebase.md",
@@ -98,19 +209,39 @@ def select_models():
     global _model_overrides
     print("\n" + "-" * 60 + "\n🤖 MODEL SELECTION\n" + "-" * 60)
 
+    presets = _load_endpoints()
+
     for role in ["General", "Reasoner"]:
-        print(f"\n{role} model:")
-        for k, p in PRESETS.items():
-            print(f"  [{k}] {p['name']}  ({p['url']} → {p['model']})")
+        while True:
+            print(f"\n{role} model:")
+            for k, p in presets.items():
+                print(f"  [{k}] {p['name']}  ({p['url']} → {p['model']})")
+            print(f"  [A] Add  [D] Delete  [R] Rename")
 
-        choice = None
-        while choice not in PRESETS:
-            try:
-                choice = input(f"\n{role} [{'/'.join(PRESETS.keys())}]: ").strip()
-            except (KeyboardInterrupt, EOFError):
-                print("\nExiting..."); exit(0)
+            choice = None
+            while not choice:
+                try:
+                    choice = input(f"\n{role} [{'/'.join(list(presets.keys()) + ['A', 'D', 'R'])}]: ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    print("\nExiting..."); exit(0)
 
-        preset = PRESETS[choice]
+            if choice.upper() == "A":
+                _add_endpoint(presets)
+                continue
+            elif choice.upper() == "D":
+                _delete_endpoint(presets)
+                presets = _load_endpoints()
+                continue
+            elif choice.upper() == "R":
+                _rename_endpoint(presets)
+                presets = _load_endpoints()
+                continue
+            elif choice not in presets:
+                print(f"  ⚠️  '{choice}' not found")
+                continue
+            break
+
+        preset = presets[choice]
         if role == "General":
             _model_overrides.update({
                 "client_base_url": preset["url"],

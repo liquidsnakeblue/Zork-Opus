@@ -1,0 +1,64 @@
+{
+  "presets": {
+    "1": {
+      "name": "Claude Opus 4.6",
+      "url": "http://192.168.4.245:8317/v1",
+      "model": "claude-opus-4-6"
+    },
+    "2": {
+      "name": "Claude Sonnet 4.6",
+      "url": "http://192.168.4.245:8317/v1",
+      "model": "claude-sonnet-4-6"
+    },
+    "3": {
+      "name": "Claude Haiku 4.5",
+      "url": "http://192.168.4.245:8317/v1",
+      "model": "claude-haiku-4-5-20251001"
+    },
+    "4": {
+      "name": "Qwen 3.5 27B QuantTrio (5090)",
+      "url": "http://192.168.4.245:8888/v1",
+      "model": "/root/models/Qwen3.5-27B-AWQ-QuantTrio"
+    },
+    "5": {
+      "name": "MiniMax M2.5 (local)",
+      "url": "https://api.schuyler.ai/v1",
+      "model": "MiniMax-M2.5-UD-Q3_K_XL-00001-of-00004.gguf"
+    },
+    "6": {
+      "name": "DeepSeek R1 0528 (OpenRouter)",
+      "url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-r1-0528"
+    },
+    "7": {
+      "name": "Gemini 3 Flash (OpenRouter)",
+      "url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3-flash-preview"
+    },
+    "8": {
+      "name": "Gemini 2.5 Flash (OpenRouter)",
+      "url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-2.5-flash"
+    },
+    "9": {
+      "name": "Qwen 3.6 Plus (OpenRouter free)",
+      "url": "https://openrouter.ai/api/v1",
+      "model": "qwen/qwen3.6-plus:free"
+    },
+    "10": {
+      "name": "Gemma 4 31B IT (local vLLM)",
+      "url": "http://192.168.4.245:30002/v1",
+      "model": "unsloth/gemma-4-31b-it"
+    },
+    "11": {
+      "name": "Qwen 3.5 27B DFlash (5090)",
+      "url": "http://192.168.4.245:8888/v1",
+      "model": "/root/models/Qwen3.5-27B-AWQ-4bit"
+    },
+    "12": {
+      "name": "Qwen 3.6 27B (LM Studio)",
+      "url": "http://192.168.4.245:30002/v1",
+      "model": "qwen3.6-27b"
+    }
+  }
+}

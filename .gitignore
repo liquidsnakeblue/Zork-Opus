@@ -9,6 +9,7 @@ build/
 
 # Environment
 .env
+endpoints.json
 
 # Game runtime files (regenerated each run)
 game_files/episodes/
