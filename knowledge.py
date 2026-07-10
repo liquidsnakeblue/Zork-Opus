@@ -96,7 +96,7 @@ class KnowledgeManager:
             episode_data.get("episode_id", ""),
             1, episode_data.get("turn_count", 0)
         )
-        turns_summary = _format_turns(turn_data) if turn_data else "(no turn data)"
+        turns_summary = _format_turns_selective(turn_data, budget=10000) if turn_data else "(no turn data)"
 
         prompt = f"""Analyze this completed Zork episode and update the CROSS-EPISODE INSIGHTS section with UNIVERSAL strategic wisdom that persists across future episodes.
 
@@ -116,7 +116,7 @@ CROSS-EPISODE INSIGHTS should contain ONLY universal strategic wisdom that appli
 - Completed objectives: {episode_data.get('completed_objectives', [])}
 
 KEY TURNS:
-{turns_summary[:10000]}
+{turns_summary}
 
 EXISTING CROSS-EPISODE INSIGHTS:
 {current_insights or "(No existing insights - this is the first episode)"}
@@ -159,7 +159,8 @@ Output the updated CROSS-EPISODE INSIGHTS section content only (no section heade
             return False
 
     def _generate(self, turn_data: Dict, existing: str) -> str:
-        turns_text = _format_turns(turn_data)
+        turns_text = _format_turns_selective(
+            turn_data, budget=self.config.knowledge_turns_budget)
         death_text = _format_deaths(turn_data)
 
         is_first = not existing.strip() or len(existing.strip().split("\n")) < 10
@@ -175,7 +176,7 @@ ARCHITECTURE REMINDER:
 THIS knowledge base provides UNIVERSAL strategic wisdom, not location-specific tactics.
 
 GAMEPLAY DATA:
-{turns_text[:15000]}
+{turns_text}
 {death_text}
 
 EXISTING KNOWLEDGE BASE:
@@ -317,10 +318,59 @@ def _format_turns(data: Optional[Dict]) -> str:
     if not data: return ""
     lines = []
     for a in data.get("actions_and_responses", []):
-        lines.append(f"Turn {a['turn']}: {a['action']} → score={a.get('score', '?')}, loc={a.get('location', '?')}")
-        resp = a.get('response', '')
-        if resp:
-            lines.append(f"  Response: {resp[:200]}")
+        lines.append(_format_turn_line(a))
+    return "\n".join(lines)
+
+
+def _format_turn_line(a: Dict) -> str:
+    line = f"Turn {a['turn']}: {a['action']} → score={a.get('score', '?')}, loc={a.get('location', '?')}"
+    resp = a.get('response', '')
+    if resp:
+        line += f"\n  Response: {resp[:200]}"
+    return line
+
+
+def _format_turns_selective(data: Optional[Dict], budget: int = 15000) -> str:
+    """Format episode turns within a char budget WITHOUT losing the late game.
+
+    The old head-only slice (turns_text[:15000]) systematically excluded every
+    discovery after roughly turn 60 of a long episode. Instead: score-change
+    turns are always kept from the WHOLE episode, the remaining budget fills
+    with the most recent turns, and omitted stretches are marked explicitly —
+    no silent truncation.
+    """
+    if not data: return ""
+    acts = data.get("actions_and_responses", [])
+    if not acts: return ""
+
+    keep = set()
+    est = 0
+    prev_score = 0
+    for i, a in enumerate(acts):
+        s = a.get("score", 0) or 0
+        if s != prev_score:
+            keep.add(i)
+            est += len(_format_turn_line(a)) + 1
+            prev_score = s
+    # Fill remaining budget from the END (recency) — reverses the old early-turn bias
+    for i in range(len(acts) - 1, -1, -1):
+        if i in keep:
+            continue
+        cost = len(_format_turn_line(acts[i])) + 1
+        if est + cost > budget:
+            break
+        keep.add(i)
+        est += cost
+
+    lines: List[str] = []
+    last = -1
+    for i in sorted(keep):
+        if i > last + 1:
+            lines.append(f"[... {i - last - 1} uneventful turns omitted ...]")
+        lines.append(_format_turn_line(acts[i]))
+        last = i
+    if last < len(acts) - 1:
+        lines.append(f"[... {len(acts) - 1 - last} turns omitted ...]")
     return "\n".join(lines)
 
 def _format_deaths(data: Optional[Dict]) -> str:

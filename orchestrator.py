@@ -27,6 +27,8 @@ from context_manager import ContextManager
 from knowledge import KnowledgeManager
 from objectives import ObjectiveManager
 from walkthrough import WalkthroughManager
+from treasures import TreasureRegistry
+from evidence import TrialLog, ProcedureStore
 from session import SessionTracker
 from prompt_logger import PromptLogger
 from logger import setup_logging, setup_episode_logging
@@ -99,7 +101,9 @@ class Orchestrator:
 
         # Core components
         self.agent = ZorkAgent(self.config, client=self.llm, logger=self.logger, episode_id=episode_id)
-        self.critic = ZorkCritic(self.config, client=self.llm, logger=self.logger, episode_id=episode_id)
+        # Critic is archived: only instantiated when explicitly enabled in config
+        self.critic = (ZorkCritic(self.config, client=self.llm, logger=self.logger, episode_id=episode_id)
+                       if self.config.enable_critic else None)
         self.extractor = Extractor(self.jericho, self.config, self.logger, episode_id)
 
         # Managers
@@ -108,6 +112,12 @@ class Orchestrator:
         self.memory = MemoryManager(self.config, self.gs, self.llm, self.logger, self.streaming)
         self.spawn_detector = SpawnDetector(self.logger)
         self.pathfinder = Pathfinder(self.config, self.gs, self.map_mgr, self.logger)
+
+        # Evidence layer: treasure ground truth, per-action trial journal,
+        # verified procedures (canonical cross-episode knowledge)
+        self.treasures = TreasureRegistry(self.config, self.logger)
+        self.trials = TrialLog(self.config, self.logger)
+        self.procedures = ProcedureStore(self.config, self.logger)
 
         # Web search
         self.web_search: Optional[WebSearchManager] = None
@@ -148,11 +158,16 @@ class Orchestrator:
             self.config, self.gs, self.knowledge, self.map_mgr, self.memory,
             self.ctx, self.walkthrough, self.reasoner_llm, self.llm,
             self.web_search, self.streaming, self.logger,
+            treasure_registry=self.treasures, procedure_store=self.procedures,
         )
+
+        # Walkthrough generation treats verified procedures as canonical
+        self.walkthrough.procedure_store = self.procedures
 
         # Inject cross-references
         self.ctx.memory_manager = self.memory
         self.ctx.pathfinder = self.pathfinder
+        self.ctx.procedure_store = self.procedures
 
         # Trophy case is episode-scoped (Zork resets each game)
         # Cross-episode knowledge lives in memories/knowledgebase, not here
@@ -190,11 +205,14 @@ class Orchestrator:
             self.gs.reset_episode(self.gs.episode_id)
             self.agent.update_episode_id(self.gs.episode_id)
             self.extractor.update_episode_id(self.gs.episode_id)
-            self.critic.update_episode_id(self.gs.episode_id)
+            if self.critic:
+                self.critic.update_episode_id(self.gs.episode_id)
             self.memory.reset_episode()
             self.spawn_detector.reset()
             self.knowledge.reset()
             self.pathfinder.reset()
+            self.treasures.reset_episode()
+            self.ctx.reset_episode()
 
             # Start Jericho
             intro = self.jericho.start()
@@ -377,6 +395,7 @@ class Orchestrator:
         # Memories stored at SOURCE location (where action taken), not destination
         pre_state = self.jericho.save_state()
         score_before, _ = self.jericho.get_score()
+        rooms_before = len(self.map_mgr.game_map.rooms)
         loc_before = self.jericho.get_location()
         loc_id_before = loc_before.num if loc_before else 0
         loc_name_before = loc_before.name if loc_before else "Unknown"
@@ -390,7 +409,7 @@ class Orchestrator:
         response = self.jericho.send_command(action)
 
         # ── Sync state from Z-machine (authoritative source of truth) ──
-        score_after, _ = self.jericho.get_score()
+        score_after, max_score = self.jericho.get_score()
         loc_after = self.jericho.get_location()
         loc_id_after = loc_after.num if loc_after else 0
         loc_name_after = loc_after.name if loc_after else "Unknown"
@@ -399,9 +418,34 @@ class Orchestrator:
 
         # Update game state from Z-machine
         self.gs.previous_score = score_after
+        self.gs.max_score = max_score
         self.gs.current_room_id = loc_id_after
         self.gs.current_room_name = loc_name_after
         self.gs.current_inventory = [o.name for o in inv_after]
+
+        # ── Durable turn journal — written IMMEDIATELY after execution, before
+        # any slow LLM post-processing, so a crash cannot erase evidence of an
+        # action that already changed the game ──
+        self.logger.info(
+            f"Executed '{action}'",
+            extra={
+                "event_type": "turn_executed", "turn": self.gs.turn_count,
+                "action": action, "score": score_after, "score_before": score_before,
+                "location": loc_name_after, "location_id": loc_id_after,
+                "location_before": loc_name_before, "location_id_before": loc_id_before,
+                "response": (response or "")[:600],
+            })
+
+        # ── Evidence trial record (deterministic learning substrate) ──
+        self.trials.record(
+            self.gs.episode_id, self.gs.turn_count, loc_id_before, loc_name_before,
+            action, response, score_after - score_before,
+            loc_id_before != loc_id_after,
+            sorted(inv_names_after - inv_names_before),
+            sorted(inv_names_before - inv_names_after))
+
+        # ── Treasure registry sync (fog-of-war-respecting object-tree truth) ──
+        self.treasures.update(self.jericho, loc_id_after, loc_name_after, self.gs.turn_count)
 
         # Track action history
         self._action_history.append(action.lower())
@@ -473,6 +517,12 @@ class Orchestrator:
             self.gs.last_scoring_turn = self.gs.turn_count
         self.gs.update_item_locations()
 
+        # ── Replanning events ──
+        if score_delta != 0:
+            self.objectives.notify_event("score_change")
+        if len(self.map_mgr.game_map.rooms) > rooms_before:
+            self.objectives.notify_event("new_room")
+
         # ── Trophy case deposit detection ──
         items_lost_this_turn = inv_names_before - inv_names_after
         if items_lost_this_turn and loc_id_before == 193:  # Living Room
@@ -533,6 +583,7 @@ class Orchestrator:
                     )
                     self.memory.add_memory(loc_id_before, loc_name_before, theft_mem)
                     self.logger.warning(f"THEFT DETECTED: {item} stolen at {loc_name_before} (T{self.gs.turn_count})")
+                    self.objectives.notify_event("theft")
                 elif not is_deliberate_drop:
                     # Item lost for unknown reasons (not a drop, not clearly theft)
                     lost_mem = Memory(
@@ -556,16 +607,22 @@ class Orchestrator:
         if loc_id_after:
             self._detect_spawn_items()
 
-        # ── Memory synthesis (uses SOURCE location) ──
-        self.memory.record_action_outcome(
-            loc_id_before, loc_name_before, action, response, z_ctx)
+        # ── Memory synthesis (uses SOURCE location; skipped on zero-information turns) ──
+        if self._should_synthesize_memory(action, response, z_ctx):
+            self.memory.record_action_outcome(
+                loc_id_before, loc_name_before, action, response, z_ctx)
 
         # ── Object event tracking ──
         self.knowledge.detect_object_events(
             list(inv_names_before), list(inv_names_after), self.jericho, action, self.gs.turn_count)
 
-        # ── Objective completion check ──
-        if self.gs.turn_count % self.config.completion_check_interval == 0:
+        # ── Objective completion: typed predicates evaluated in code (every turn, free) ──
+        self.objectives.check_completions_deterministic()
+
+        # ── LLM review only for prose-condition objectives, only on meaningful turns ──
+        if (self.gs.turn_count % self.config.completion_check_interval == 0
+                and self.objectives.needs_llm_completion_check()
+                and self._completion_review_due(response, z_ctx)):
             self.objectives.check_completions(action, response)
 
         # ── Reasoner update (periodic + ensure objectives exist) ──
@@ -643,6 +700,47 @@ class Orchestrator:
             self.objectives.run_reasoner("")
         else:
             self.logger.info("Fresh run — skipping initial objectives")
+
+    # ── LLM-call gating ──
+
+    # Response fragments that carry zero information worth an LLM synthesis call
+    # when nothing else changed. Substantive failures ("the bolt won't turn")
+    # do NOT match these and still synthesize.
+    _BORING_RESPONSES = (
+        "you can't go that way", "i don't know the word", "you can't see any",
+        "what do you want", "you used the word", "there is a wall",
+        "i don't understand", "you already have", "it is already open",
+        "it is already closed", "that sentence isn't one i recognize",
+    )
+
+    def _should_synthesize_memory(self, action: str, response: str, z_ctx: Dict) -> bool:
+        """Skip LLM memory synthesis on zero-information turns."""
+        if not self.config.memory_synthesis_skip_boring:
+            return True
+        if (z_ctx.get('score_delta') or z_ctx.get('location_changed')
+                or z_ctx.get('inventory_changed') or z_ctx.get('died')
+                or z_ctx.get('first_visit')):
+            return True
+        r = (response or "").strip().lower()
+        if len(r) < 120 and any(p in r for p in self._BORING_RESPONSES):
+            return False  # pure parser noise; exit failures are tracked by the map
+        if (action or "").strip().lower() == "look":
+            return False  # re-describing a known room on a no-change turn
+        return True
+
+    def _completion_review_due(self, response: str, z_ctx: Dict) -> bool:
+        """LLM completion review runs on meaningful turns, plus a periodic sweep
+        so prose-condition objectives that complete quietly still get caught."""
+        if not self.config.completion_check_events_only:
+            return True
+        if (z_ctx.get('score_delta') or z_ctx.get('location_changed')
+                or z_ctx.get('inventory_changed') or z_ctx.get('died')):
+            return True
+        if any(e["turn"] == self.gs.turn_count for e in self.gs.theft_events):
+            return True
+        if len(response or "") > 160:
+            return True  # long response = something happened worth judging
+        return self.gs.turn_count % 10 == 0
 
     # ── Handler chain ──
 
@@ -776,6 +874,14 @@ class Orchestrator:
                      f"Do NOT retry Pathfinder to this room — it will fail again.\n"
                      f"ACTION REQUIRED: Explore NEW unexplored exits to discover connections "
                      f"toward your target. Pick a direction you haven't tried.\n")
+
+        # Objectives pointed at an unreachable target become BLOCKED — the
+        # reasoner sees the reason and replans instead of the agent grinding
+        if result and not result["found"]:
+            block_reason = result.get("reason") or "no path to target"
+            for o in list(self.gs.active_objectives):
+                if o.target_location_id == target_id:
+                    self.objectives.mark_blocked(o.id, block_reason)
 
         self.gs.tool_history.append({"tool": "pathfinder", "target": room_name, "success": bool(result and result["found"])})
         self.gs.active_tool = None
@@ -967,6 +1073,7 @@ class Orchestrator:
                     "turn_count": self.gs.turn_count,
                     "game_over": self.gs.game_over,
                     "score": self.gs.previous_score,
+                    "max_score": self.gs.max_score,
                     "max_turns": self.config.max_turns_per_episode,
                     "models": {"agent": self.config.agent_model, "critic": self.config.critic_model},
                     "generation": self.session_stats.get('generation', 1),
@@ -984,6 +1091,7 @@ class Orchestrator:
                     "discovered_objectives": self.gs.discovered_objective_texts,
                     "completed_objectives": self.gs.completed_objectives_list,
                     "trophy_case": self.gs.trophy_case_contents,
+                    "treasures": self.treasures.get_export_data(),
                 },
                 "recent_log": recent_log,
                 "tool_status": {"active": self.gs.active_tool, "data": self.gs.active_tool_data,

@@ -16,8 +16,13 @@ class ContextManager:
         self.config = config
         self.game_state = game_state
         self.logger = logger
-        self.memory_manager = None  # Injected
-        self.pathfinder = None      # Injected
+        self.memory_manager = None   # Injected
+        self.pathfinder = None       # Injected
+        self.procedure_store = None  # Injected
+
+    def reset_episode(self):
+        """Clear episode-scoped caches (traversability changes every episode)."""
+        pass  # nothing episode-scoped cached currently; hook kept for clarity
 
     def build_agent_context(self, game_text: str, extracted=None, map_manager=None) -> Dict[str, Any]:
         """Build context dict from all sources."""
@@ -133,6 +138,13 @@ class ContextManager:
             mem_text = self.memory_manager.get_location_memory(gs.current_room_id)
             if mem_text:
                 parts.append(f"=== LOCATION MEMORIES ===\n{mem_text}")
+                parts.append("")
+
+        # Verified procedures relevant to this location (canonical — outrank memories)
+        if self.procedure_store and gs.current_room_id:
+            proc_text = self.procedure_store.format_for_location(gs.current_room_id)
+            if proc_text:
+                parts.append(proc_text)
                 parts.append("")
 
         # Navigation context
@@ -272,6 +284,20 @@ class ContextManager:
             return ""
 
         target_name = game_map.room_names.get(target_id, f"L{target_id}")
+
+        # Probe the FIRST hop against the live Z-machine before recommending it —
+        # the historical map doesn't know about closed trap doors / locked gates.
+        # One hop, one probe: cheap enough to run every turn.
+        if len(waypoints) > 1 and self._first_hop_blocked(
+                dirs[0], gs.current_room_id, waypoints[1].get("room_id")):
+            return (
+                f"=== NAVIGATION GUIDANCE ===\n"
+                f"Known route to objective [{active.id}] \"{active.name}\" at {target_name} "
+                f"(L{target_id}) starts with '{dirs[0]}', but that passage is CURRENTLY "
+                f"IMPASSABLE (e.g. closed trap door / locked gate). Open the way, find "
+                f"another route, or work a different objective."
+            )
+
         steps = " → ".join(dirs)
         return (
             f"=== NAVIGATION GUIDANCE ===\n"
@@ -280,6 +306,17 @@ class ContextManager:
             f"Path: {steps}\n"
             f">>> NEXT STEP: {dirs[0]} <<<"
         )
+
+    def _first_hop_blocked(self, direction: str, from_id: int, to_id) -> bool:
+        """Live Z-machine probe of the recommended next step (save/restore, ~ms)."""
+        if to_id is None or not self.pathfinder or not self.pathfinder.map_manager:
+            return False
+        try:
+            probe = self.pathfinder.map_manager.validate_path(
+                [(direction, from_id, to_id)], num_probes=1)
+            return not probe["valid"]
+        except Exception:
+            return False  # never let a probe failure suppress guidance
 
     def add_action_to_history(self, action: str, response: str, location_id: int, location_name: str):
         """Add completed action to history."""

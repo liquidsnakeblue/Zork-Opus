@@ -24,6 +24,7 @@ py-modules = [
     "game_interface", "logger", "agent", "critic", "extractor", "memory",
     "map_graph", "map_manager", "pathfinder", "context_manager", "knowledge",
     "objectives", "walkthrough", "web_search", "streaming", "session",
+    "treasures", "evidence",
 ]
 
 [tool.zorkopus]
@@ -140,7 +141,11 @@ game_file_path = "jericho-game-suite/zork1.z5"
 [tool.zorkopus.orchestrator]
 max_turns_per_episode = 500
 knowledge_update_interval = 100
-objective_update_interval = 10
+# Reasoner is event-driven (completion/blockage/theft/score/new room);
+# objective_update_interval is now the MAX gap fallback, min_gap the floor.
+objective_update_interval = 25
+objective_update_min_gap = 3
+knowledge_turns_budget = 15000
 enable_state_export = true
 enable_inter_episode_synthesis = true
 enable_walkthrough_generation = true
@@ -167,6 +172,9 @@ stuck_warning_threshold = 15
 [tool.zorkopus.memory]
 memory_file = "Memories.md"
 max_memories_shown = 15
+# Skip LLM memory synthesis on zero-information turns (parser rejections
+# with no state change). Substantive failures still synthesize.
+synthesis_skip_boring = true
 
 # ══════════════════════════════════════════════════════════════
 # Files

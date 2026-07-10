@@ -59,7 +59,10 @@ class Config(BaseSettings):
 
     # Intervals
     knowledge_update_interval: int = 100
-    objective_update_interval: int = 10
+    # Reasoner runs are event-driven (completion/blockage/theft/score/new room);
+    # objective_update_interval is the MAX gap fallback, min_gap prevents thrash.
+    objective_update_interval: int = 25
+    objective_update_min_gap: int = 3
 
     # Objectives
     enable_objective_refinement: bool = False
@@ -69,6 +72,10 @@ class Config(BaseSettings):
     enable_objective_completion_llm_check: bool = True
     completion_check_interval: int = 1
     completion_history_window: int = 3
+    # Only run the LLM completion review on meaningful turns (state change /
+    # long response / periodic sweep). Typed predicates are evaluated in code
+    # every turn regardless.
+    completion_check_events_only: bool = True
 
     # State export
     enable_state_export: bool = True
@@ -87,6 +94,13 @@ class Config(BaseSettings):
     memory_file: str = "Memories.md"
     max_memories_shown: int = 15
     room_description_age_window: int = 10
+    # Skip LLM memory synthesis on zero-information turns (no state change +
+    # pure parser rejection). Failure responses with substance still synthesize.
+    memory_synthesis_skip_boring: bool = True
+
+    # Prompt budgets (chars). Truncation is logged, never silent.
+    reasoner_walkthrough_chars: int = 12000
+    knowledge_turns_budget: int = 15000
 
     # Loop break
     max_turns_stuck: int = 80
@@ -231,6 +245,10 @@ class Config(BaseSettings):
             "retry": retry or _default_retry(),
             "knowledge_update_interval": orch.get("knowledge_update_interval"),
             "objective_update_interval": orch.get("objective_update_interval"),
+            "objective_update_min_gap": orch.get("objective_update_min_gap"),
+            "memory_synthesis_skip_boring": mem.get("synthesis_skip_boring"),
+            "reasoner_walkthrough_chars": rs.get("walkthrough_chars"),
+            "knowledge_turns_budget": orch.get("knowledge_turns_budget"),
             "enable_objective_refinement": orch.get("enable_objective_refinement"),
             "enable_state_export": orch.get("enable_state_export"),
             "s3_key_prefix": aws.get("s3_key_prefix"),
@@ -270,6 +288,7 @@ class Config(BaseSettings):
             "enable_objective_completion_llm_check": cfg.get("objective_completion", {}).get("enable_llm_check", True),
             "completion_check_interval": cfg.get("objective_completion", {}).get("check_interval", 1),
             "completion_history_window": cfg.get("objective_completion", {}).get("history_window", 3),
+            "completion_check_events_only": cfg.get("objective_completion", {}).get("events_only"),
         }
 
         # Loop break settings (only if present)

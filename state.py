@@ -21,17 +21,30 @@ class ActionEntry(BaseModel):
 
 
 class Objective(BaseModel):
-    """Structured objective with lifecycle tracking."""
+    """Structured objective with lifecycle tracking.
+
+    completion_predicate is a typed, code-evaluated condition — when present,
+    completion is decided deterministically (no LLM). Supported types:
+      {"type": "inventory_contains", "item": "<name fragment>"}
+      {"type": "trophy_contains", "item": "<name fragment>"}
+      {"type": "room_id_equals", "room_id": <int>}
+      {"type": "score_delta_at_least", "amount": <int>}   (since creation)
+      {"type": "new_rooms_since_created", "count": <int>}
+    """
     id: str
     category: Literal["exploration", "action"]
     name: str
     text: str
     completion_condition: str
-    status: Literal["pending", "in_progress", "completed", "abandoned"] = "pending"
+    status: Literal["pending", "in_progress", "completed", "abandoned", "blocked"] = "pending"
     created_turn: int = 0
     completed_turn: Optional[int] = None
     target_location_id: Optional[int] = None
     progress: Optional[str] = None
+    completion_predicate: Optional[Dict[str, Any]] = None
+    blocked_reason: Optional[str] = None
+    created_score: int = 0
+    created_room_count: int = 0
 
 
 @dataclass
@@ -45,6 +58,7 @@ class GameState:
     current_room_name: str = ""
     current_inventory: List[str] = field(default_factory=list)
     previous_score: int = 0
+    max_score: int = 0  # from Z-machine (350 for Zork I)
     game_over: bool = False
 
     # Initial state (for viewer first card)
@@ -262,6 +276,10 @@ class GameState:
     @property
     def active_objectives(self) -> List[Objective]:
         return [o for o in self.objectives if o.status in ("pending", "in_progress")]
+
+    @property
+    def blocked_objectives(self) -> List[Objective]:
+        return [o for o in self.objectives if o.status == "blocked"]
 
     @property
     def completed_objectives_list(self) -> List[Dict[str, Any]]:

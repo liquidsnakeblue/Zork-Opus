@@ -14,12 +14,23 @@ from state import GameState, Objective
 from llm_client import LLMClient, extract_json
 
 
+# Typed predicate schemas: type name -> (required arg, coercion)
+_PREDICATE_TYPES = {
+    "inventory_contains": ("item", str),
+    "trophy_contains": ("item", str),
+    "room_id_equals": ("room_id", int),
+    "score_delta_at_least": ("amount", int),
+    "new_rooms_since_created": ("count", int),
+}
+
+
 class ObjectiveDefinition(BaseModel):
     category: Literal["exploration", "action"]
     name: str
     text: str
     completion_condition: str
     target_location_id: Optional[int] = None
+    completion_predicate: Optional[Dict[str, Any]] = None
 
     @field_validator("target_location_id", mode="before")
     @classmethod
@@ -38,6 +49,26 @@ class ObjectiveDefinition(BaseModel):
                 # Non-numeric string like "Gallery" — ignore
                 return None
         return None
+
+    @field_validator("completion_predicate", mode="before")
+    @classmethod
+    def _sanitize_predicate(cls, v):
+        """Keep only well-formed predicates of a known type; else None (LLM fallback)."""
+        if not isinstance(v, dict):
+            return None
+        ptype = v.get("type")
+        if ptype not in _PREDICATE_TYPES:
+            return None
+        arg_name, coerce = _PREDICATE_TYPES[ptype]
+        raw = v.get(arg_name)
+        if raw is None:
+            return None
+        try:
+            if coerce is int and isinstance(raw, str):
+                raw = re.sub(r'^[Ll]', '', raw.strip())
+            return {"type": ptype, arg_name: coerce(raw)}
+        except (ValueError, TypeError):
+            return None
 
 
 class ReasonerResponse(BaseModel):
@@ -68,7 +99,8 @@ class ObjectiveManager:
                  knowledge_manager=None, map_manager=None, memory_manager=None,
                  context_manager=None, walkthrough_manager=None,
                  llm_client: Optional[LLMClient] = None, review_client: Optional[LLMClient] = None,
-                 web_search_manager=None, streaming_server=None, logger=None):
+                 web_search_manager=None, streaming_server=None, logger=None,
+                 treasure_registry=None, procedure_store=None):
         self.config = config
         self.gs = game_state
         self.knowledge = knowledge_manager
@@ -78,6 +110,8 @@ class ObjectiveManager:
         self.walkthrough = walkthrough_manager
         self.streaming = streaming_server
         self.web_search = web_search_manager
+        self.treasures = treasure_registry
+        self.procedures = procedure_store
         self.logger = logger
 
         # LLM clients
@@ -89,15 +123,32 @@ class ObjectiveManager:
         self._reasoner_fail_turn = -999  # Cooldown after failures
         self._reasoner_consecutive_failures = 0
 
+        # Event-driven replanning
+        self._pending_events: set = set()
+        self._trigger_reason: str = ""
+
+    def notify_event(self, event: str):
+        """Record a replanning-worthy event (completion, blockage, theft, score, new room)."""
+        self._pending_events.add(event)
+
     def should_run_reasoner(self) -> bool:
-        """Check if it's time for the reasoner to update objectives."""
+        """Event-driven: run on meaningful events, with a max-gap fallback and
+        a min-gap floor to prevent thrash. (Was: flat every-N-turns timer.)"""
         turn = self.gs.turn_count
         if turn == 0: return False
         # Cooldown after failure: wait at least 5 turns before retrying
         if (turn - self._reasoner_fail_turn) < 5:
             return False
-        interval = self.config.objective_update_interval
-        return (turn - self.gs.objective_update_turn) >= interval
+        gap = turn - self.gs.objective_update_turn
+        if gap < self.config.objective_update_min_gap:
+            return False
+        if gap >= self.config.objective_update_interval:
+            self._trigger_reason = f"Max-gap review ({self.config.objective_update_interval} turns)"
+            return True
+        if self._pending_events:
+            self._trigger_reason = "Events: " + ", ".join(sorted(self._pending_events))
+            return True
+        return False
 
     def run_reasoner(self, game_text: str = "") -> Optional[ReasonerResponse]:
         """Call reasoner to generate/update objectives."""
@@ -105,12 +156,16 @@ class ObjectiveManager:
             return None
 
         # Build context for reasoner
-        parts = [f"Turn: {self.gs.turn_count}", f"Score: {self.gs.previous_score}",
+        max_score = self.gs.max_score or 350
+        parts = [f"Turn: {self.gs.turn_count}",
+                 f"Score: {self.gs.previous_score} / {max_score}",
                  f"Location: {self.gs.current_room_name} (L{self.gs.current_room_id})",
                  f"Inventory: {', '.join(self.gs.current_inventory) if self.gs.current_inventory else 'empty'}"]
 
-        # Trophy case awareness
-        if self.gs.trophy_case:
+        # Treasure tracker (deterministic, from Z-machine object tree)
+        if self.treasures:
+            parts.append("\n" + self.treasures.format_for_reasoner())
+        elif self.gs.trophy_case:
             deposited = sorted(self.gs.trophy_case)
             parts.append(f"Trophy case ({len(deposited)} deposited): {', '.join(deposited)}")
 
@@ -175,6 +230,14 @@ class ObjectiveManager:
             for o in active:
                 parts.append(f"  [{o.id}] {o.name}: {o.text} (condition: {o.completion_condition})")
 
+        # Blocked objectives — the operator hit a hard wall on these
+        blocked = self.gs.blocked_objectives
+        if blocked:
+            parts.append("\n⛔ BLOCKED OBJECTIVES (target unreachable — abandon them, or "
+                         "create objectives that clear the blocker / find another route):")
+            for o in blocked:
+                parts.append(f"  [{o.id}] {o.name}: {o.blocked_reason or 'no path to target'}")
+
         completed = self.gs.completed_objectives_list[-5:]
         if completed:
             parts.append("\nRECENTLY COMPLETED:")
@@ -209,6 +272,12 @@ class ObjectiveManager:
             except (FileNotFoundError, AttributeError):
                 pass
 
+        # Verified procedures (canonical — outrank memories and walkthrough)
+        if self.procedures:
+            proc_text = self.procedures.format()
+            if proc_text:
+                parts.append(f"\n{proc_text}")
+
         # Key puzzle memories (PUZZLE and DISCOVERY, non-superseded)
         if self.memory:
             puzzle_mems = self.memory.get_puzzle_summary(max_entries=30)
@@ -219,11 +288,20 @@ class ObjectiveManager:
         if self.walkthrough:
             wt = self.walkthrough.get_content()
             if wt:
-                parts.append(f"\nWALKTHROUGH GUIDE:\n{wt[:3000]}")
+                budget = self.config.reasoner_walkthrough_chars
+                wt_slice = wt[:budget]
+                if len(wt) > budget:
+                    wt_slice += f"\n[... walkthrough truncated: {len(wt) - budget} of {len(wt)} chars omitted ...]"
+                    if self.logger:
+                        self.logger.info(f"Reasoner walkthrough truncated to {budget}/{len(wt)} chars")
+                parts.append(f"\nWALKTHROUGH GUIDE:\n{wt_slice}")
 
         context = "\n".join(parts)
 
-        prompt = f"""You are a strategic advisor for a text adventure game agent playing Zork. Analyze the game state and output STRUCTURED objectives as JSON. Objectives should be well thought out and reasoned with a focus on high-level goals and milestones that would help the agent beat the game. The game is won when all valuable treasures are in the trophy case.
+        prompt = f"""You are a strategic advisor for a text adventure game agent playing Zork I. Analyze the game state and output STRUCTURED objectives as JSON. Objectives should be well thought out and reasoned with a focus on high-level goals and milestones that would help the agent beat the game.
+
+=== VICTORY CONTRACT ===
+Zork I is won at {max_score} points: ALL 19 treasures (see TREASURE TRACKER) must be deposited in the Living Room trophy case. Points come from acquiring treasures AND from depositing them (deposit is usually worth more). When all 19 are deposited, a map appears in the trophy case leading to the Stone Barrow endgame — that is the true finish, not merely "some treasures in the case." Use the tracker to target specific missing treasures and their prerequisites instead of re-harvesting familiar early points.
 
 === SYSTEM ARCHITECTURE (what you DON'T need to plan for) ===
 The agent has automated systems that handle navigation and mapping. Your job is STRATEGY, not logistics.
@@ -282,6 +360,12 @@ For each objective, provide:
 - text: Short, clean description (1 sentence)
 - completion_condition: EXPLICIT, VERIFIABLE condition (e.g., "egg is in inventory", "score increased", "current location is Kitchen")
 - target_location_id: For ACTION objectives, the target location number (e.g., 42 for L42)
+- completion_predicate: a TYPED condition the system verifies IN CODE every turn (no LLM judgment — far more reliable than prose). Provide one whenever the objective fits a type; omit only for genuinely fuzzy goals. Types:
+    {{"type": "inventory_contains", "item": "sword"}}          — item name fragment in inventory
+    {{"type": "trophy_contains", "item": "painting"}}          — treasure deposited in trophy case
+    {{"type": "room_id_equals", "room_id": 107}}               — agent standing in that room
+    {{"type": "score_delta_at_least", "amount": 5}}            — score gained since objective created
+    {{"type": "new_rooms_since_created", "count": 3}}          — new rooms discovered since created
 
 Also provide:
 - suggested_approach: A CONCISE paragraph (2-3 sentences) explaining how to accomplish the objectives you are creating. ONLY discuss the objectives you are outputting — do not speculate beyond them. The reasoner runs again automatically when these objectives are completed.
@@ -293,7 +377,7 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
   "reasoning": "Agent needs equipment. Each objective targets ONE location.",
   "suggested_approach": "Collect the sword from the Living Room — it is needed to defeat the troll blocking underground access.",
   "new_objectives": [
-    {{"category": "action", "name": "Collect Sword", "text": "Take the elvish sword from the Living Room", "completion_condition": "sword is in inventory", "target_location_id": 193}}
+    {{"category": "action", "name": "Collect Sword", "text": "Take the elvish sword from the Living Room", "completion_condition": "sword is in inventory", "target_location_id": 193, "completion_predicate": {{"type": "inventory_contains", "item": "sword"}}}}
   ],
   "abandon_objective_ids": ["A001"]
 }}
@@ -303,7 +387,9 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
         if self.gs.turn_count == 0:
             trigger = "Episode start"
         else:
-            trigger = f"Periodic review (every {self.config.objective_update_interval} turns)"
+            trigger = self._trigger_reason or "Objective review"
+        self._pending_events.clear()
+        self._trigger_reason = ""
 
         try:
             rs = self.config.reasoner_sampling
@@ -428,24 +514,32 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
             self.logger.info("Created fallback objectives (reasoner unavailable)")
 
     def _apply_reasoner_result(self, result: ReasonerResponse):
-        # Abandon objectives
+        # Abandon objectives (blocked ones may be abandoned too)
         for obj_id in result.abandon_objective_ids:
             obj = self.gs.get_objective(obj_id)
-            if obj and obj.status in ("pending", "in_progress"):
+            if obj and obj.status in ("pending", "in_progress", "blocked"):
                 obj.status = "abandoned"
 
         # Add new objectives (skip duplicates)
         existing_names = {o.name.lower().strip() for o in self.gs.objectives
                          if o.status in ("pending", "in_progress")}
+        room_count = len(self.map_manager.game_map.rooms) if self.map_manager else 0
         for defn in result.new_objectives[:3]:
             if defn.name.lower().strip() in existing_names:
                 continue  # Skip duplicate
+            target_id, note = self._resolve_target(
+                defn.name, defn.text, defn.target_location_id)
+            if note and self.logger:
+                self.logger.warning(f"Objective target validation ({defn.name!r}): {note}")
             obj_id = self.gs.next_objective_id(defn.category)
             obj = Objective(
                 id=obj_id, category=defn.category, name=defn.name,
                 text=defn.text, completion_condition=defn.completion_condition,
                 created_turn=self.gs.turn_count,
-                target_location_id=defn.target_location_id,
+                target_location_id=target_id,
+                completion_predicate=defn.completion_predicate,
+                created_score=self.gs.previous_score,
+                created_room_count=room_count,
             )
             self.gs.objectives.append(obj)
             existing_names.add(defn.name.lower().strip())
@@ -454,12 +548,134 @@ First, THINK DEEPLY about the game state. Then output JSON in ```json fences:
         if result.suggested_approach:
             self.gs.current_approach = result.suggested_approach
 
+    def _resolve_target(self, name: str, text: str, target_id: Optional[int]):
+        """Validate a reasoner-supplied target_location_id against the room registry.
+
+        Fixes mechanical mismatches like "Reach Round Room" pointed at
+        East-West Passage (L41) instead of Round Room (L107). Conservative:
+        only corrects when the objective names a known room and the target is
+        a DIFFERENT known room not mentioned anywhere in the objective.
+        Returns (resolved_id_or_None, note_or_None).
+        """
+        if not self.map_manager:
+            return target_id, None
+        rooms = self.map_manager.game_map.room_names  # {id: name}
+
+        def mentioned(s: str):
+            s_low = (s or "").lower()
+            hits = [(rid, rn) for rid, rn in rooms.items()
+                    if len(rn) >= 4 and rn.lower() in s_low]
+            hits.sort(key=lambda x: -len(x[1]))  # prefer the most specific name
+            return hits
+
+        hits = mentioned(name) or mentioned(text)
+
+        if target_id is not None and target_id in rooms:
+            tgt_name = rooms[target_id].lower()
+            if hits:
+                best_id, best_name = hits[0]
+                target_mentioned = any(rn.lower() == tgt_name for _, rn in hits)
+                # "Reservoir" mentioned only as part of "Reservoir South" is not
+                # a real mention of the target — the more specific room wins.
+                shadowed = (target_mentioned and best_id != target_id
+                            and tgt_name in best_name.lower()
+                            and len(best_name) > len(tgt_name))
+                if (not target_mentioned or shadowed) and best_id != target_id:
+                    return best_id, (f"corrected target L{target_id} ({rooms[target_id]}) → "
+                                     f"L{best_id} ({best_name}) — objective names that room")
+            return target_id, None
+
+        # Target missing or not a known room: try to resolve from the wording
+        if hits:
+            best_id, best_name = hits[0]
+            return best_id, f"resolved target from wording → L{best_id} ({best_name})"
+        if target_id is not None:
+            return None, f"dropped unknown room id L{target_id} (not in map registry)"
+        return target_id, None
+
+    def mark_blocked(self, obj_id: str, reason: str) -> bool:
+        """Mark an objective blocked (target unreachable). Reasoner decides its fate."""
+        obj = self.gs.get_objective(obj_id)
+        if not obj or obj.status not in ("pending", "in_progress"):
+            return False
+        obj.status = "blocked"
+        obj.blocked_reason = reason
+        if self.logger:
+            self.logger.warning(f"Objective [{obj_id}] {obj.name} BLOCKED: {reason}")
+        self.notify_event("objective_blocked")
+        return True
+
+    # ── Deterministic completion (typed predicates, no LLM) ──
+
+    def check_completions_deterministic(self) -> List[str]:
+        """Evaluate typed completion predicates in code. Runs every turn; free.
+        Blocked objectives are included — reaching the goal unblocks/completes."""
+        completed = []
+        for o in self.gs.objectives:
+            if o.status not in ("pending", "in_progress", "blocked"):
+                continue
+            if not o.completion_predicate:
+                continue
+            try:
+                if self._eval_predicate(o, o.completion_predicate):
+                    o.status = "completed"
+                    o.completed_turn = self.gs.turn_count
+                    completed.append(o.id)
+                    if self.logger:
+                        self.logger.info(
+                            f"Objective [{o.id}] {o.name} completed by predicate "
+                            f"{o.completion_predicate}")
+            except Exception as e:
+                if self.logger:
+                    self.logger.warning(f"Predicate eval failed for [{o.id}]: {e}")
+        if completed:
+            self.notify_event("objective_completed")
+            self.gs.objective_review_results[self.gs.turn_count] = {
+                "content": "\n".join(
+                    f"[{oid}] completed: typed predicate satisfied" for oid in completed),
+                "completed_objectives": [
+                    {"id": oid, "name": (self.gs.get_objective(oid).name
+                                          if self.gs.get_objective(oid) else oid)}
+                    for oid in completed],
+                "updates": [],
+            }
+        return completed
+
+    def _eval_predicate(self, obj: Objective, pred: Dict[str, Any]) -> bool:
+        ptype = pred.get("type")
+        if ptype == "inventory_contains":
+            frag = str(pred.get("item", "")).lower()
+            return bool(frag) and any(frag in i.lower() for i in self.gs.current_inventory)
+        if ptype == "trophy_contains":
+            frag = str(pred.get("item", "")).lower()
+            if not frag:
+                return False
+            if self.treasures and self.treasures.is_deposited(frag):
+                return True
+            return any(frag in i.lower() for i in self.gs.trophy_case)
+        if ptype == "room_id_equals":
+            return self.gs.current_room_id == int(pred.get("room_id", -1))
+        if ptype == "score_delta_at_least":
+            return (self.gs.previous_score - obj.created_score) >= int(pred.get("amount", 0))
+        if ptype == "new_rooms_since_created":
+            if not self.map_manager:
+                return False
+            grown = len(self.map_manager.game_map.rooms) - obj.created_room_count
+            return grown >= int(pred.get("count", 0))
+        return False
+
+    def needs_llm_completion_check(self) -> bool:
+        """True if any active objective lacks a typed predicate (LLM must judge)."""
+        return any(not o.completion_predicate for o in self.gs.active_objectives)
+
     def check_completions(self, action: str, response: str) -> List[str]:
-        """Check if any objectives were completed this turn. Returns completed IDs."""
+        """LLM review of PROSE completion conditions. Objectives with typed
+        predicates are handled in code by check_completions_deterministic and
+        are excluded here. Returns completed IDs."""
         if not self.config.enable_objective_completion_llm_check:
             return []
 
-        active = self.gs.active_objectives
+        active = [o for o in self.gs.active_objectives if not o.completion_predicate]
         if not active:
             return []
 
@@ -591,6 +807,12 @@ If no changes: {{"reasoning": "No conditions met", "updates": []}}"""
             review_content = "\n".join(review_lines) if review_lines else "No objective changes."
             update_dicts = [u.model_dump() for u in result.updates]
 
+            # Merge with any deterministic-predicate result already stored this turn
+            prior = self.gs.objective_review_results.get(self.gs.turn_count)
+            if prior:
+                review_content = prior["content"] + "\n" + review_content
+                completed_objs = prior["completed_objectives"] + completed_objs
+                update_dicts = prior.get("updates", []) + update_dicts
             self.gs.objective_review_results[self.gs.turn_count] = {
                 "content": review_content,
                 "completed_objectives": completed_objs,
@@ -603,6 +825,8 @@ If no changes: {{"reasoning": "No conditions met", "updates": []}}"""
                     self.gs.turn_count, review_content, completed_objs, update_dicts,
                 )
 
+            if completed_ids:
+                self.notify_event("objective_completed")
             return completed_ids
 
         except Exception as e:

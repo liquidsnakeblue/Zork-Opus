@@ -30,20 +30,33 @@ class WalkthroughManager:
             config=config, base_url=config.base_url_for("reasoner"),
             api_key=config.api_key_for("reasoner"), logger=logger,
         )
+        self.procedure_store = None  # Injected by orchestrator
         self._cache: Optional[str] = None
         self._cache_mtime: Optional[float] = None
 
+    def _canonical_procedures(self) -> str:
+        if not self.procedure_store:
+            return ""
+        return self.procedure_store.format() or ""
+
     def generate(self) -> Optional[str]:
-        """Generate or incrementally update walkthrough from memories."""
+        """Generate or incrementally update walkthrough from memories.
+
+        Verified procedures are injected as CANONICAL constraints: the guide
+        is a human-readable projection and must never contradict them (prose
+        regeneration previously destroyed causal knowledge, e.g. the Dam's
+        yellow-button prerequisite became "state-dependent; retry").
+        """
         existing = self._load_existing()
         memories = self._load_memories()
         if not memories:
             return None
 
+        canonical = self._canonical_procedures()
         if existing:
-            prompt = self._incremental_prompt(memories, existing)
+            prompt = self._incremental_prompt(memories, existing, canonical)
         else:
-            prompt = self._fresh_prompt(memories)
+            prompt = self._fresh_prompt(memories, canonical)
 
         try:
             # Backup existing
@@ -97,18 +110,27 @@ class WalkthroughManager:
         except Exception:
             return ""
 
-    def _fresh_prompt(self, memories: str) -> str:
+    def _fresh_prompt(self, memories: str, canonical: str = "") -> str:
+        canon_block = (f"\n{canonical}\n\nThe VERIFIED PROCEDURES above are canonical ground "
+                       f"truth confirmed across episodes. Reproduce them faithfully — exact "
+                       f"preconditions and step order — and NEVER contradict or vague them "
+                       f"down (no \"state-dependent; retry\" summaries).\n") if canonical else ""
         return f"""Analyze these Zork I gameplay memories and create a puzzle-solving guide.
-
+{canon_block}
 === MEMORIES ===
 {memories}
 
 Create sections: Overview, Essential Items, Puzzle Solutions, Safe Order of Play, Combat, Unsolved Mysteries.
 Be thorough but organized."""
 
-    def _incremental_prompt(self, memories: str, existing: str) -> str:
+    def _incremental_prompt(self, memories: str, existing: str, canonical: str = "") -> str:
+        canon_block = (f"\n{canonical}\n" if canonical else "")
+        canon_rule = ("6. The VERIFIED PROCEDURES above are canonical ground truth confirmed "
+                      "across episodes — reproduce their exact preconditions and step order; "
+                      "if the existing guide contradicts them, the procedures win\n"
+                      if canonical else "")
         return f"""Update this Zork I guide with new memories.
-
+{canon_block}
 === EXISTING GUIDE ===
 {existing}
 
@@ -121,7 +143,7 @@ Rules:
 3. Remove disproven information
 4. Consolidate, don't accumulate
 5. The Thief and Guard are the same NPC
-
+{canon_rule}
 Output the complete updated guide."""
 
     def reset(self):
