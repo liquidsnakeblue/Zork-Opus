@@ -2755,12 +2755,12 @@
         },
 
         getWebSocketUrl() {
-            const params = new URLSearchParams(window.location.search);
-            const custom = params.get('ws');
-            if (custom) return custom;
+            // Always same-origin. No ?ws= override: a crafted link must not be
+            // able to point the socket at an attacker-controlled server (which
+            // could then feed hostile payloads into the DOM). window.location.host
+            // keeps the port, so http://localhost:8764 works, not just the tunnel.
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const host = window.location.hostname;
-            return `${proto}//${host}/ws`;
+            return `${proto}//${window.location.host}/ws`;
         }
     };
 
@@ -4014,7 +4014,11 @@
             AppState.connection.expectedEpisodeId = msg.episode_id || null;
 
             const timeline = document.getElementById('timeline');
-            if (timeline) timeline.innerHTML = `<div class="card" style="text-align:center;padding:20px;opacity:0.6;"><p>Generation ${msg.generation} starting...</p></div>`;
+            // Coerce to a number before it reaches innerHTML — never interpolate a
+            // raw stream field into markup, even from a same-origin backend.
+            const genNum = Number(msg.generation);
+            const genLabel = Number.isFinite(genNum) ? genNum : '?';
+            if (timeline) timeline.innerHTML = `<div class="card" style="text-align:center;padding:20px;opacity:0.6;"><p>Generation ${genLabel} starting...</p></div>`;
 
             document.getElementById('inventory-items').innerHTML = '<div class="empty-state">Starting new game...</div>';
             document.getElementById('objectives-chips').innerHTML = '';
