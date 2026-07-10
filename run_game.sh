@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Zork-Opus launcher.
-# Defaults: General=#15 Qwen 27B Liquid, Reasoner=#16 Claude Opus 4.8
-# Also available (via 192.168.1.41:8317 router):
-#   #17 Claude Fable 5   (claude-fable-5 — rejects temperature/top_p, client strips them)
-#   #18 GPT 5.6 Sol      (gpt-5.6-sol)
+# Defaults: General=#18 GPT 5.6 Sol, Reasoner=#17 Claude Fable 5
+#   (#17 claude-fable-5 rejects temperature/top_p, client strips them)
+# Also available: #15 Qwen 27B Liquid, #16 Claude Opus 4.8
 # Override without editing:
-#   REASONER=17 ./run_game.sh              # Fable as reasoner
-#   GENERAL=18 REASONER=17 ./run_game.sh   # GPT 5.6 Sol general + Fable reasoner
+#   GENERAL=15 REASONER=16 ./run_game.sh   # previous duo (Qwen general + Opus 4.8 reasoner)
 #   FRESH=1 ./run_game.sh                  # clean run: back up + wipe learned state, reset to Gen 1
 #                                          # (procedures.json survives — canonical, git-tracked)
 cd /home/liquidsnakeblue/Zork-Opus
@@ -16,4 +14,4 @@ if [[ -n "${FRESH:-}" ]]; then
 else
   MODE="--continue-run"
 fi
-exec python main.py "$MODE" --continuous --general-preset "${GENERAL:-15}" --reasoner-preset "${REASONER:-16}"
+exec python main.py "$MODE" --continuous --general-preset "${GENERAL:-18}" --reasoner-preset "${REASONER:-17}"
