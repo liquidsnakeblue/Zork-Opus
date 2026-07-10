@@ -24,6 +24,10 @@ REASONING_MODEL_MARKERS = [
 # Models where response_format must be suppressed
 RESPONSE_FORMAT_BLOCKED = ["step-3", "step3", "gpt-oss"]
 
+# Models that reject `temperature`/`top_p` (e.g. Anthropic reasoning models like
+# claude-opus-4-8 — the router returns 400 "temperature is deprecated for this model").
+TEMPERATURE_UNSUPPORTED = ["opus-4-8"]
+
 
 @dataclass
 class LLMResponse:
@@ -110,11 +114,19 @@ class LLMClient:
     def _should_suppress_response_format(self, model: str) -> bool:
         return any(m in model.lower() for m in RESPONSE_FORMAT_BLOCKED)
 
+    def _temperature_unsupported(self, model: str) -> bool:
+        return any(m in model.lower() for m in TEMPERATURE_UNSUPPORTED)
+
     def _build_request(self, model: str, messages: List[Dict], **kwargs) -> Dict:
         body: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
 
+        # Some models (e.g. claude-opus-4-8) reject sampling controls entirely.
+        no_temp = self._temperature_unsupported(model)
+
         # Standard params
         for key in ["temperature", "top_p", "max_tokens", "stop", "presence_penalty"]:
+            if no_temp and key in ("temperature", "top_p"):
+                continue
             val = kwargs.get(key)
             if val is not None:
                 body[key] = val

@@ -261,6 +261,8 @@ There are TWO types of objectives:
 **CRITICAL**: IN NEW OR EARLY GAME SITUATIONS, prefer EXPLORATION to build out the map. Puzzles often involve items from other locations.
 
 === CRITICAL CONSTRAINTS ===
+- **NEVER create an objective that contradicts KEY PUZZLE KNOWLEDGE or memories above.** Those are ground truth learned from the actual game. If memory says an item is NOT at a location (e.g. "Attic contains no nest"), or that an item's real source is elsewhere (e.g. the jeweled egg is up the tree in the forest, NOT the attic), do NOT create an objective pointing to the wrong place. Trust observed game facts over your own assumptions about Zork.
+- If an existing objective contradicts what memory now proves (wrong item location, already-tried-and-failed), ADD its id to abandon_objective_ids.
 - Only reference location IDs that exist in the map data above
 - Do NOT suggest acquiring items already in inventory: {self.gs.current_inventory}
 - Do NOT create objectives to collect or deposit items already in the trophy case: {sorted(self.gs.trophy_case) if self.gs.trophy_case else 'none yet'}

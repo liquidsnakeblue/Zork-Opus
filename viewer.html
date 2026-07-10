@@ -2758,8 +2758,9 @@
             const params = new URLSearchParams(window.location.search);
             const custom = params.get('ws');
             if (custom) return custom;
-            const host = window.location.hostname || 'localhost';
-            return `ws://${host}:8765`;
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname;
+            return `${proto}//${host}/ws`;
         }
     };
 

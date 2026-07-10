@@ -38,6 +38,7 @@ class Config(BaseSettings):
     # LLM
     client_base_url: str = "https://openrouter.ai/api/v1"
     client_api_key: Optional[str] = None
+    reasoner_api_key: Optional[str] = None
     agent_model: str = "openrouter/pony-alpha"
     critic_model: str = "openrouter/pony-alpha"
     extractor_model: str = "openrouter/pony-alpha"
@@ -165,6 +166,9 @@ class Config(BaseSettings):
 
     def api_key_for(self, role: str) -> Optional[str]:
         """Get effective API key for a model role."""
+        role_key = getattr(self, f"{role}_api_key", None)
+        if role_key:
+            return role_key
         url = self.base_url_for(role).lower()
         if "openrouter" in url:
             return os.environ.get("OPENROUTER_API_KEY") or self.client_api_key

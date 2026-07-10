@@ -62,7 +62,8 @@ _DEFAULT_PRESETS = {
     "11": {"name": "Qwen 3.5 27B DFlash (5090)",
            "url": "http://192.168.4.245:8888/v1", "model": "/root/models/Qwen3.5-27B-AWQ-4bit"},
     "12": {"name": "Qwen 3.6 27B (LM Studio)",
-           "url": "http://192.168.4.245:30002/v1", "model": "qwen3.6-27b"},
+           "url": "http://192.168.4.245:30002/v1", "model": "qwen3.6-27b",
+           "api_key": "sk-lm-zh68RuOc:AdLhtk7tCF7QOM0tg0uC"},
 }
 
 
@@ -205,44 +206,64 @@ def backup_and_reset():
         print("📦 No existing files to backup")
 
 
-def select_models():
+def select_models(general_preset=None, reasoner_preset=None):
     global _model_overrides
     print("\n" + "-" * 60 + "\n🤖 MODEL SELECTION\n" + "-" * 60)
 
     presets = _load_endpoints()
 
+    choices = {
+        "General": general_preset,
+        "Reasoner": reasoner_preset,
+    }
+
     for role in ["General", "Reasoner"]:
-        while True:
-            print(f"\n{role} model:")
-            for k, p in presets.items():
-                print(f"  [{k}] {p['name']}  ({p['url']} → {p['model']})")
-            print(f"  [A] Add  [D] Delete  [R] Rename")
+        choice = choices[role]
 
-            choice = None
-            while not choice:
-                try:
-                    choice = input(f"\n{role} [{'/'.join(list(presets.keys()) + ['A', 'D', 'R'])}]: ").strip()
-                except (KeyboardInterrupt, EOFError):
-                    print("\nExiting..."); exit(0)
+        # If preset key provided, skip interactive prompt
+        if choice is None:
+            while True:
+                print(f"\n{role} model:")
+                for k, p in presets.items():
+                    print(f"  [{k}] {p['name']}  ({p['url']} → {p['model']})")
+                print(f"  [A] Add  [D] Delete  [R] Rename")
 
-            if choice.upper() == "A":
-                _add_endpoint(presets)
-                continue
-            elif choice.upper() == "D":
-                _delete_endpoint(presets)
-                presets = _load_endpoints()
-                continue
-            elif choice.upper() == "R":
-                _rename_endpoint(presets)
-                presets = _load_endpoints()
-                continue
-            elif choice not in presets:
-                print(f"  ⚠️  '{choice}' not found")
-                continue
-            break
+                while not choice:
+                    try:
+                        choice = input(f"\n{role} [{'/'.join(list(presets.keys()) + ['A', 'D', 'R'])}]: ").strip()
+                    except (KeyboardInterrupt, EOFError):
+                        print("\nExiting..."); exit(0)
+
+                if choice.upper() == "A":
+                    _add_endpoint(presets)
+                    choice = None
+                    continue
+                elif choice.upper() == "D":
+                    _delete_endpoint(presets)
+                    presets = _load_endpoints()
+                    choice = None
+                    continue
+                elif choice.upper() == "R":
+                    _rename_endpoint(presets)
+                    presets = _load_endpoints()
+                    choice = None
+                    continue
+                elif choice not in presets:
+                    print(f"  ⚠️  '{choice}' not found")
+                    choice = None
+                    continue
+                break
+
+        if choice not in presets:
+            print(f"  ⚠️  Preset '{choice}' not found!")
+            exit(1)
 
         preset = presets[choice]
+        print(f"\n  {role}: {preset['name']} ({preset['model']})")
+
         if role == "General":
+            if "api_key" in preset:
+                _model_overrides["client_api_key"] = preset["api_key"]
             _model_overrides.update({
                 "client_base_url": preset["url"],
                 "agent_model": preset["model"], "critic_model": preset["model"],
@@ -250,6 +271,8 @@ def select_models():
                 "analysis_model": preset["model"],
             })
         else:
+            if "api_key" in preset:
+                _model_overrides["reasoner_api_key"] = preset["api_key"]
             _model_overrides.update({
                 "reasoner_base_url": preset["url"], "reasoner_model": preset["model"],
             })
@@ -326,6 +349,8 @@ def main():
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--continue-run", action="store_true")
+    parser.add_argument("--general-preset", type=str, default=None, help="Preset key for general model (non-interactive)")
+    parser.add_argument("--reasoner-preset", type=str, default=None, help="Preset key for reasoner model (non-interactive)")
     args = parser.parse_args()
 
     # Startup mode
@@ -348,7 +373,7 @@ def main():
         else:
             print(f"▶️  Continuing from Gen {session.stats.generation + 1}")
 
-    select_models()
+    select_models(general_preset=args.general_preset, reasoner_preset=args.reasoner_preset)
 
     if args.continuous:
         print("🔄 CONTINUOUS MODE")

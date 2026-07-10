@@ -383,6 +383,9 @@ class Orchestrator:
         inv_before = self.jericho.get_inventory_structured()
         inv_names_before = set(o.name for o in inv_before)
 
+        # ── Light-source guard: never let the agent drop its LAST light (grue prevention) ──
+        action = self._light_guard(action, inv_names_before)
+
         # ── Execute action ──
         response = self.jericho.send_command(action)
 
@@ -581,6 +584,7 @@ class Orchestrator:
                 "event_type": "turn_completed", "turn": self.gs.turn_count,
                 "action": action, "score": self.gs.previous_score,
                 "location": self.gs.current_room_name,
+                "response": (response or "")[:600],
                 "confidence": 0.0,
             })
 
@@ -641,6 +645,42 @@ class Orchestrator:
             self.logger.info("Fresh run — skipping initial objectives")
 
     # ── Handler chain ──
+
+    _LIGHT_KEYWORDS = ("lantern", "lamp", "torch")
+
+    def _light_guard(self, action: str, inv_names) -> str:
+        """Block dropping the agent's LAST light source (instant grue risk in the dark).
+
+        Safe by construction: only intervenes when the drop would leave ZERO light
+        sources in inventory. Keeping the lantern never breaks the chimney climb, and
+        the gas-room puzzle (drop torch, keep lantern) still works because a second
+        light remains. Grounded in gen_61 (grue) and gen_62 (dropped torch+lantern).
+        """
+        a = (action or "").lower().strip()
+        if not a.startswith("drop"):
+            return action
+        inv_lower = [str(n).lower() for n in (inv_names or [])]
+        lights = [n for n in inv_lower if any(k in n for k in self._LIGHT_KEYWORDS)]
+        if not lights:
+            return action  # nothing to protect
+
+        drop_all = a in ("drop all", "drop everything", "drop all items")
+        drops_a_light = any(k in a for k in self._LIGHT_KEYWORDS)
+        if not (drop_all or drops_a_light):
+            return action
+
+        if drop_all:
+            remaining_lights = []
+        else:
+            # specific drop: lights whose name does NOT appear in the drop command survive
+            remaining_lights = [l for l in lights if not any(tok in a for tok in l.split())]
+
+        if not remaining_lights:
+            self.logger.warning(
+                f"[light-guard] blocked '{action}' — would leave the agent with no light "
+                f"source (grue risk); inventory lights={lights}. Substituting 'look'.")
+            return "look"
+        return action
 
     _SPECIAL_ACTION_RE = re.compile(r'^(pathfinder|objective|search|crawl)\s*:', re.IGNORECASE)
 

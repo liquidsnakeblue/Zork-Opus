@@ -167,27 +167,30 @@ You can also edit `endpoints.json` directly in your editor:
 ```json
 {
   "presets": {
-    "1": { "name": "My Model", "url": "http://...", "model": "model-id" }
+    "1": { "name": "My Model", "url": "http://...", "model": "model-id" },
+    "2": { "name": "My LM Studio", "url": "http://...", "model": "model-id", "api_key": "sk-..." }
   }
 }
 ```
 
+Presets support an optional `api_key` field. When present, it overrides `client_api_key` for the LLM client at runtime.
+
 Default presets available:
 
-| # | Model | Endpoint |
-|---|-------|----------|
-| 1 | Claude Opus 4.6 | Local (Ollama/LM Studio) |
-| 2 | Claude Sonnet 4.6 | Local |
-| 3 | Claude Haiku 4.5 | Local |
-| 4 | Qwen 3.5 27B QuantTrio | Local vLLM (5090) |
-| 5 | MiniMax M2.5 | schuyler.ai |
-| 6 | DeepSeek R1 0528 | OpenRouter |
-| 7 | Gemini 3 Flash | OpenRouter |
-| 8 | Gemini 2.5 Flash | OpenRouter |
-| 9 | Qwen 3.6 Plus | OpenRouter (free) |
-| 10 | Gemma 4 31B IT | Local vLLM |
-| 11 | Qwen 3.5 27B DFlash | Local vLLM (5090) |
-| 12 | Qwen 3.6 27B | LM Studio |
+| # | Model | Endpoint | Notes |
+|---|-------|----------|-------|
+| 1 | Claude Opus 4.6 | Local (Ollama/LM Studio) | |
+| 2 | Claude Sonnet 4.6 | Local | |
+| 3 | Claude Haiku 4.5 | Local | |
+| 4 | Qwen 3.5 27B QuantTrio | Local vLLM (5090) | |
+| 5 | MiniMax M2.5 | schuyler.ai | |
+| 6 | DeepSeek R1 0528 | OpenRouter | |
+| 7 | Gemini 3 Flash | OpenRouter | |
+| 8 | Gemini 2.5 Flash | OpenRouter | |
+| 9 | Qwen 3.6 Plus | OpenRouter (free) | |
+| 10 | Gemma 4 31B IT | Local vLLM | |
+| 11 | Qwen 3.5 27B DFlash | Local vLLM (5090) | |
+| 12 | Qwen 3.6 27B | LM Studio | Includes API key |
 
 ### Configuration
 
