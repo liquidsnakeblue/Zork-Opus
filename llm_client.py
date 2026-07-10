@@ -25,8 +25,9 @@ REASONING_MODEL_MARKERS = [
 RESPONSE_FORMAT_BLOCKED = ["step-3", "step3", "gpt-oss"]
 
 # Models that reject `temperature`/`top_p` (e.g. Anthropic reasoning models like
-# claude-opus-4-8 — the router returns 400 "temperature is deprecated for this model").
-TEMPERATURE_UNSUPPORTED = ["opus-4-8"]
+# claude-opus-4-8 and claude-fable-5 — the router returns 400 "temperature is
+# deprecated for this model"; verified for fable-5 on 2026-07-09).
+TEMPERATURE_UNSUPPORTED = ["opus-4-8", "fable-5"]
 
 
 @dataclass
