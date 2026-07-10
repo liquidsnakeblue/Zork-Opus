@@ -162,8 +162,11 @@ def _rename_endpoint(presets: dict) -> None:
 GAME_FILES = [
     "game_files/Memories.md", "game_files/knowledgebase.md",
     "game_files/map_state.json", "game_files/session_stats.json",
+    "game_files/treasure_state.json", "game_files/trophy_case.json",
     "current_state.json", "Zork Walkthrough.md",
 ]
+# game_files/procedures.json is deliberately NOT in this list: canonical
+# evidence-backed procedures are git-tracked and survive fresh starts.
 
 _model_overrides: dict = {}
 session = SessionTracker()
@@ -190,6 +193,14 @@ def backup_and_reset():
         shutil.rmtree(episodes)
         episodes.mkdir(parents=True, exist_ok=True)
         backed.append(f"episodes/ ({len(list((backup / 'episodes').iterdir()))} items)")
+
+    # Move bulky per-run artifact dirs (moved, not copied — prompt_logs can be GBs)
+    for dirname in ("prompt_logs", "evidence"):
+        d = Path("game_files") / dirname
+        if d.exists() and any(d.iterdir()):
+            shutil.move(str(d), str(backup / dirname))
+            backed.append(f"{dirname}/")
+        d.mkdir(parents=True, exist_ok=True)
 
     # Cleanup old walkthrough copies
     wt_copies = list(Path(".").glob("Zork Walkthrough.*.md"))

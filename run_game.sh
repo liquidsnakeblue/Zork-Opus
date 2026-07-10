@@ -7,6 +7,13 @@
 # Override without editing:
 #   REASONER=17 ./run_game.sh              # Fable as reasoner
 #   GENERAL=18 REASONER=17 ./run_game.sh   # GPT 5.6 Sol general + Fable reasoner
+#   FRESH=1 ./run_game.sh                  # clean run: back up + wipe learned state, reset to Gen 1
+#                                          # (procedures.json survives — canonical, git-tracked)
 cd /home/liquidsnakeblue/Zork-Opus
 source .venv/bin/activate
-exec python main.py --continue-run --continuous --general-preset "${GENERAL:-15}" --reasoner-preset "${REASONER:-16}"
+if [[ -n "${FRESH:-}" ]]; then
+  MODE="--fresh"
+else
+  MODE="--continue-run"
+fi
+exec python main.py "$MODE" --continuous --general-preset "${GENERAL:-15}" --reasoner-preset "${REASONER:-16}"
