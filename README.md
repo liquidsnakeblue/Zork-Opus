@@ -14,9 +14,9 @@ Clean rewrite optimized for large-context models (Claude Opus 4.6, Qwen 3.5, etc
 │              (Game loop coordinator — 1,100 lines)              │
 │                                                                 │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │  Agent   │→ │  Critic  │→ │Extractor │  │Jericho (Z5)   │  │
-│  │(action   │  │(eval +   │  │(pure     │  │  game engine   │  │
-│  │ gen)     │  │ validate)│  │ Z-machine│  │  via Frotz    │  │
+│  │  Agent   │→ │Extractor │  │Treasures │  │Jericho (Z5)   │  │
+│  │(action   │  │(pure     │  │(19-item  │  │  game engine   │  │
+│  │ gen)     │  │ Z-machine│  │ registry)│  │  via Frotz    │  │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └───────┬───────┘  │
 │       │              │             │                │           │
 │  ┌────▼──────────────▼─────────────▼────────────────▼───┐      │
@@ -56,7 +56,10 @@ Clean rewrite optimized for large-context models (Claude Opus 4.6, Qwen 3.5, etc
 | `config.py` | 282 | Pydantic settings loaded from `pyproject.toml` — single source of truth for all configuration |
 | `llm_client.py` | 405 | Direct HTTP LLM client with retry, circuit breaker, streaming, and `extract_json()` for robust parsing |
 | `context_manager.py` | 307 | Assembles agent prompts from game state, memories, objectives, map, navigation, and item tracker |
-| `critic.py` | 204 | Action evaluation with Z-machine object tree pre-check and LLM scoring |
+| `critic.py` | 204 | (ARCHIVED — off by default, not instantiated) LLM action pre-evaluation |
+| `treasures.py` | 240 | 19-treasure registry from Z-machine object tree — fog-of-war-respecting, cross-episode |
+| `evidence.py` | 160 | TrialLog (append-only action outcomes) + ProcedureStore (canonical verified procedures) |
+| `evidence_miner.py` | 180 | Offline mining: flags condition-dependent actions across all episode logs |
 | `agent.py` | 271 | JSON-structured action generation from LLM with thinking/reasoning mode support |
 | `map_manager.py` | 243 | Map building from Z-machine ground truth, direction detection, path validation via save/restore probing |
 | `map_graph.py` | 251 | Room/connection graph with BFS pathfinding, Mermaid rendering, exit failure tracking, exploration frontier |
@@ -78,17 +81,29 @@ Clean rewrite optimized for large-context models (Claude Opus 4.6, Qwen 3.5, etc
 ### The Game Loop (per turn)
 
 1. **Extract** — Jericho reads Z-machine state (location, inventory, visible objects, exits, score)
-2. **Context** — ContextManager assembles a rich prompt: current state, memories at this location, objectives, map, navigation guidance, item tracker, recent actions
+2. **Context** — ContextManager assembles a rich prompt: current state, memories at this location, verified procedures for this location, objectives, map, navigation guidance (first hop live-probed against the Z-machine), item tracker, recent actions
 3. **Agent** — LLM receives the context and outputs `{"thinking": "...", "action": "..."}`
 4. **Special Actions** — If the action is `Pathfinder: 79`, `Objective: A001`, `Search: ...`, or `Crawl: ...`, the orchestrator intercepts and dispatches to the appropriate handler
-5. **Critic** (optional) — LLM evaluates the proposed action with Z-machine ground truth; rejects if score < threshold
-6. **Execute** — Command sent to Z-machine via Jericho
-7. **Sync** — Score, location, inventory read from Z-machine (authoritative)
+5. **Execute** — Command sent to Z-machine via Jericho
+6. **Sync + Journal** — Score, location, inventory read from Z-machine (authoritative); a durable `turn_executed` event and an evidence trial record are written IMMEDIATELY, before any LLM post-processing, so a crash can't erase an executed turn
+7. **Treasure Sync** — TreasureRegistry updates the 19-treasure state machine from the object tree (fog-of-war preserved: only possessed/visible/touched treasures are revealed)
 8. **Map Update** — New rooms and connections recorded; direction verified by testing all canonical directions via save/restore
-9. **Memory Synthesis** — LLM decides if this turn's outcome is worth remembering (PUZZLE, SUCCESS, DISCOVERY, DANGER, etc.)
-10. **Objective Check** — LLM reviews if any objectives were completed
-11. **Reasoner** (periodic) — Strategic LLM generates/updates objectives every N turns, considering full game state, map frontier, knowledge base, and memories
-12. **Knowledge Update** (periodic) — LLM analyzes episode data to build universal strategic knowledge
+9. **Memory Synthesis** — LLM decides if this turn's outcome is worth remembering (PUZZLE, SUCCESS, DISCOVERY, DANGER, etc.); skipped on zero-information turns (parser rejections with no state change)
+10. **Objective Check** — typed completion predicates are evaluated in code every turn; an LLM review runs only for prose-condition objectives on meaningful turns
+11. **Reasoner** (event-driven) — Strategic LLM replans on completion/blockage/theft/score/new-room events, with a max-gap fallback — not on a flat timer
+12. **Knowledge Update** (periodic) — LLM analyzes episode data (score milestones always included, no head-only truncation) to build universal strategic knowledge
+
+> **Critic (archived)**: the pre-execution critic loop is disabled by default and no longer instantiated unless `enable_critic = true`. Zork's parser is the natural validator — the agent sees "You can't go that way" and adapts.
+
+### The Evidence Layer
+
+Prose memory proved lossy: procedures observed repeatedly (press yellow button → dam bolt turns, confirmed in six episodes) degraded into vague prose ("state-dependent; retry") and later generations regressed. Three structured stores fix this:
+
+- **`game_files/evidence/trials.jsonl`** (TrialLog) — append-only record of every executed action with state deltas and a success/failure verdict. Raw material for mining.
+- **`game_files/procedures.json`** (ProcedureStore) — verified multi-step procedures with preconditions, steps, postconditions, failure modes, and episode provenance. CANONICAL: injected into reasoner/agent/walkthrough prompts as ground truth that prose must not contradict.
+- **`game_files/treasure_state.json`** (TreasureRegistry) — cross-episode treasure knowledge (where each was first found). The reasoner sees a 19-treasure tracker and the real victory contract (350 points, all treasures deposited, Stone Barrow endgame).
+
+`evidence_miner.py` scans all episode logs offline and flags condition-dependent actions (ones that both succeed and fail at the same location) with candidate preconditions — promotion into `procedures.json` is deliberate, never automatic prose import.
 
 ### Cross-Episode Persistence
 
@@ -318,7 +333,7 @@ Custom HTTP client (no OpenAI SDK dependency) supporting:
 
 - **Web Search** (`enable_web_search = true`): Agent can search the web via SearXNG MCP and crawl pages via Crawl4AI when stuck on puzzles. Requires a running SearXNG instance and Crawl4AI MCP endpoint.
 - **AWS S3 Export** (`s3_bucket = "..."`): State exports are also pushed to S3. Requires `pip install -e ".[s3]"`.
-- **Critic** (`enable_critic = true`): LLM-based action evaluation before execution. Adds latency but can prevent bad actions.
+- **Critic** (`enable_critic = true`, ARCHIVED): LLM-based action evaluation before execution. Disabled and not instantiated by default — kept only for experimentation.
 - **Streaming** (`enable_streaming = true`): Real-time WebSocket broadcasting to `viewer.html`. Requires `websockets` package.
 
 ## Contributing
