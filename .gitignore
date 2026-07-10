@@ -49,3 +49,7 @@ game_files/trophy_case.json
 # Analysis tool caches / scratch
 .understand-anything/
 inspect/
+
+# Evidence layer runtime data (procedures.json stays tracked — curated)
+game_files/treasure_state.json
+game_files/evidence/

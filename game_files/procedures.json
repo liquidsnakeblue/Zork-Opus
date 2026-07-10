@@ -1,0 +1,35 @@
+{
+  "_comment": "Verified procedures — canonical causal knowledge with episode provenance. Promoted deliberately from episode-log evidence (see evidence/trials.jsonl and evidence_miner.py), never from free-form LLM prose. Injected into reasoner/agent/walkthrough prompts as ground truth.",
+  "procedures": [
+    {
+      "id": "drain-reservoir",
+      "name": "Open dam sluice gates (drain the reservoir)",
+      "location_ids": [215, 199, 100],
+      "preconditions": [
+        "wrench in inventory (wrench is at the Dam's Maintenance Room area)",
+        "yellow button pressed THIS episode (green bubble on the dam panel glows)"
+      ],
+      "steps": [
+        "push yellow button @ Maintenance Room (L199)",
+        "go to Dam (L215)",
+        "turn bolt with wrench"
+      ],
+      "postconditions": [
+        "sluice gates open; reservoir drains over the next several turns",
+        "trunk of jewels becomes reachable at Reservoir (L100)"
+      ],
+      "failure_modes": [
+        "'turn bolt with wrench' ALWAYS fails unless the yellow button was pressed first this episode — do NOT blind-retry the bolt; go press yellow at Maintenance Room (L199)"
+      ],
+      "evidence": [
+        "Ep46 T63 yellow, T66 bolt ok",
+        "Ep50 T93 bolt fail, T111 yellow, T114 bolt ok",
+        "Ep53 T68 bolt fail, T73 yellow, T76 bolt ok",
+        "Ep59 T95 bolt fail, T106 yellow, T109 bolt ok",
+        "Ep61 T69 bolt fail, T72 yellow, T75 bolt ok",
+        "Ep62 T211/213/217 bolt fail, T224 yellow, T227 bolt ok"
+      ],
+      "status": "verified"
+    }
+  ]
+}

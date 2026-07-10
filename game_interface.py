@@ -118,6 +118,10 @@ class JerichoInterface:
         if not self.env: raise RuntimeError("Not started")
         return self.env.get_world_objects()
 
+    def get_player_object(self) -> Any:
+        if not self.env: raise RuntimeError("Not started")
+        return self.env.get_player_object()
+
     def check_attribute(self, obj: Any, bit: int) -> bool:
         if obj is None or not hasattr(obj, 'attr'): return False
         try:
