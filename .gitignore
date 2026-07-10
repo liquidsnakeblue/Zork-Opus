@@ -37,3 +37,15 @@ zork_episode_log.jsonl
 # OS
 .DS_Store
 Thumbs.db
+
+# Large/generated assets
+room_images/
+jericho-game-suite/*
+!jericho-game-suite/zork1.z5
+
+# Runtime state
+game_files/trophy_case.json
+
+# Analysis tool caches / scratch
+.understand-anything/
+inspect/
